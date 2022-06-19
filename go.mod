@@ -1,4 +1,4 @@
-module example.com/test-package
+module github.com/drcynic/dcmview
 
 go 1.18
 

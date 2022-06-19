@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/alexflint/go-arg"
 	"github.com/suyashkumar/dicom"
@@ -9,20 +10,30 @@ import (
 	"github.com/suyashkumar/dicom/pkg/vrraw"
 )
 
-var version = "unknown"
+var (
+	version = "unknown"
+	commit  string
+)
 
 type args struct {
 	Input string `arg:"positional" help:"The DICOM input file"`
 }
 
-func (args) Version() string { return version }
+func (args) Version() string { return "Version " + version + " (" + commit + ")" }
 
 func main() {
 	var args args
-	arg.MustParse(&args)
-	fmt.Printf("input file: %s\n", args.Input)
+	p := arg.MustParse(&args)
+	if args.Input == "" {
+		p.Fail("missing DICOM input file")
+	}
 
-	dataset, _ := dicom.ParseFile("testdata/test.dcm", nil) // See also: dicom.Parse which has a generic io.Reader API.
+	dataset, err := dicom.ParseFile(args.Input, nil) 
+	if err != nil {
+		fmt.Printf("Could not read DICOM file: '%s'\n", err.Error())
+		os.Exit(1)
+	}
+
 	var currentGroup uint16
 	for _, e := range dataset.Elements {
 		if currentGroup != e.Tag.Group {

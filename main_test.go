@@ -16,4 +16,3 @@ func TestSomething(t *testing.T) {
 	input := 12
 	assert.Equal(16, myFunc(input), "they should be equal")
 }
-
