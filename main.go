@@ -116,6 +116,10 @@ func main() {
 			l.ScrollTop()
 		case "<Enter>":
 			l.ToggleExpand()
+		case "l":
+			l.Expand()
+		case "h":
+			l.Collapse()
 		case "G", "<End>":
 			l.ScrollBottom()
 		case "E":
