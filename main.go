@@ -5,11 +5,11 @@ import (
 	"os"
 
 	"github.com/alexflint/go-arg"
+	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 	"github.com/suyashkumar/dicom"
 	"github.com/suyashkumar/dicom/pkg/tag"
 	"github.com/suyashkumar/dicom/pkg/vrraw"
-
-	"github.com/rivo/tview"
 )
 
 var (
@@ -37,8 +37,9 @@ func main() {
 	}
 
 	// create tree nodes with dicom tags
-	rootDir := "."
-	root := tview.NewTreeNode(rootDir)
+	app := tview.NewApplication()
+	rootDir := ""
+	root := tview.NewTreeNode(rootDir).SetSelectable(false)
 	tree := tview.NewTreeView().SetRoot(root).SetCurrentNode(root)
 	var currentGroupNode *tview.TreeNode
 	var currentGroup uint16
@@ -70,7 +71,27 @@ func main() {
 		node.SetExpanded(!node.IsExpanded())
 	})
 
-	if err := tview.NewApplication().SetRoot(tree, true).Run(); err != nil {
+	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Rune() {
+		case 'E':
+			for _, child := range root.GetChildren() {
+				child.ExpandAll()
+			}
+			return nil
+		case 'C':
+			for _, child := range root.GetChildren() {
+				child.CollapseAll()
+			}
+			return nil
+		case 'q':
+			app.Stop()
+			return nil
+		}
+
+		return event
+	})
+
+	if err := app.SetRoot(tree, true).Run(); err != nil {
 		panic(err)
 	}
 }
