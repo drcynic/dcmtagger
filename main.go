@@ -83,6 +83,26 @@ func main() {
 				child.CollapseAll()
 			}
 			return nil
+		case 'J':
+			// todo: jump to next node on parent level or if on expandable node to next on same level
+		    return nil;
+		case 'h':
+			currentNode := tree.GetCurrentNode()
+			numChildren := len(currentNode.GetChildren())
+			if numChildren == 0 {
+				return tcell.NewEventKey(tcell.KeyRune, 'K', tcell.ModNone)
+			} else if currentNode.IsExpanded() {
+				currentNode.Collapse()
+				return nil
+			} else {
+				return tcell.NewEventKey(tcell.KeyRune, 'K', tcell.ModNone)
+			}
+		case 'l':
+			currentNode := tree.GetCurrentNode()
+			if len(currentNode.GetChildren()) > 0 && !currentNode.IsExpanded() {
+				currentNode.SetExpanded(true)
+			}
+			return nil
 		case 'q':
 			app.Stop()
 			return nil
