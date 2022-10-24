@@ -71,6 +71,7 @@ func main() {
 		node.SetExpanded(!node.IsExpanded())
 	})
 
+	// key handlings
 	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Rune() {
 		case 'E':
@@ -85,17 +86,15 @@ func main() {
 			return nil
 		case 'J':
 			// todo: jump to next node on parent level or if on expandable node to next on same level
-		    return nil;
+			return nil
 		case 'h':
 			currentNode := tree.GetCurrentNode()
 			numChildren := len(currentNode.GetChildren())
-			if numChildren == 0 {
+			if numChildren == 0 || !currentNode.IsExpanded() {
 				return tcell.NewEventKey(tcell.KeyRune, 'K', tcell.ModNone)
-			} else if currentNode.IsExpanded() {
+			} else {
 				currentNode.Collapse()
 				return nil
-			} else {
-				return tcell.NewEventKey(tcell.KeyRune, 'K', tcell.ModNone)
 			}
 		case 'l':
 			currentNode := tree.GetCurrentNode()
