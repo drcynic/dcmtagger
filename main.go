@@ -110,11 +110,63 @@ func main() {
 		return event
 	})
 
-	if err := app.SetRoot(tree, true).Run(); err != nil {
+	tagDescription := tagDescView()
+
+	grid := tview.NewGrid().
+		SetRows(-1).
+		SetColumns(-2, -1).
+		SetBorders(true).
+		AddItem(tree, 0, 0, 1, 1, 0, 0, true).
+		AddItem(tagDescription, 0, 1, 1, 1, 0, 0, false)
+
+	if err := app.SetRoot(grid, true).Run(); err != nil {
 		panic(err)
 	}
 }
 
-func myFunc(param int) int {
-	return param + 4
+func tagDescView() *tview.Grid {
+	grid := tview.NewGrid().
+		SetRows(2, 1, 1, 1, -1).
+		SetColumns(-1, -4)
+
+	header := tview.NewTextView().
+		SetTextAlign(tview.AlignCenter).
+		SetText("<tag name here>")
+
+	vrLabel := tview.NewTextView().
+		SetTextAlign(tview.AlignRight).
+		SetText("VR: ")
+
+	vr := tview.NewTextView().
+		SetTextAlign(tview.AlignLeft).
+		SetText("PN")
+
+	lengthLabel := tview.NewTextView().
+		SetTextAlign(tview.AlignRight).
+		SetText("Length: ")
+
+	length := tview.NewTextView().
+		SetTextAlign(tview.AlignLeft).
+		SetText("123")
+
+	valueLabel := tview.NewTextView().
+		SetTextAlign(tview.AlignRight).
+		SetText("Value: ")
+
+	value := tview.NewTextView().
+		SetTextAlign(tview.AlignLeft).
+		SetText("SOMATOM Definition")
+
+	grid.AddItem(header, 0, 0, 1, 2, 0, 0, false)
+
+	grid.AddItem(vrLabel, 1, 0, 1, 1, 0, 0, false)
+	grid.AddItem(vr, 1, 1, 1, 1, 0, 0, false)
+
+	grid.AddItem(lengthLabel, 2, 0, 1, 1, 0, 0, false)
+	grid.AddItem(length, 2, 1, 1, 1, 0, 0, false)
+
+	grid.AddItem(valueLabel, 3, 0, 1, 1, 0, 0, false)
+	grid.AddItem(value, 3, 1, 1, 1, 0, 0, false)
+
+	return grid
 }
