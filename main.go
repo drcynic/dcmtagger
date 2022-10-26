@@ -14,14 +14,13 @@ import (
 
 var (
 	version = "unknown"
-	commit  string
 )
 
 type args struct {
 	Input string `arg:"positional" help:"The DICOM input file"`
 }
 
-func (args) Version() string { return "Version " + version + " (" + commit + ")" }
+func (args) Version() string { return "Version " + version }
 
 func main() {
 	var args args
