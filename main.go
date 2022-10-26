@@ -57,18 +57,48 @@ func main() {
 			tagName = tagInfo.Name
 		}
 
-		var value string
-		if e.RawValueRepresentation != vrraw.Sequence && e.ValueLength < 150 {
-			value = e.Value.String()
-		}
-		elementText := fmt.Sprintf("\t%04x %s (%s): %s", e.Tag.Element, tagName, e.RawValueRepresentation, value)
-		elementNode := tview.NewTreeNode(elementText).SetSelectable(true)
+		elementText := fmt.Sprintf("\t%04x %s", e.Tag.Element, tagName)
+		elementNode := tview.NewTreeNode(elementText).SetSelectable(true).SetReference(e)
 		currentGroupNode.AddChild(elementNode)
 		//fmt.Printf("\t%s\n", elementText)
 	}
 
+	tagDescriptionViews := tagDescView()
+
+	mainGrid := tview.NewGrid().
+		SetRows(-1).
+		SetColumns(-1, -2).
+		SetBorders(true).
+		AddItem(tree, 0, 0, 1, 1, 0, 0, true).
+		AddItem(tagDescriptionViews.grid, 0, 1, 1, 1, 0, 0, false)
+
 	tree.SetSelectedFunc(func(node *tview.TreeNode) {
 		node.SetExpanded(!node.IsExpanded())
+	})
+
+	tree.SetChangedFunc(func(node *tview.TreeNode) {
+		if len(node.GetChildren()) > 0 {
+			tagDescriptionViews.tagNameView.SetText("")
+			tagDescriptionViews.vrView.SetText("")
+			tagDescriptionViews.lengthView.SetText("")
+			tagDescriptionViews.valueView.SetText("")
+		} else {
+			e := node.GetReference().(*dicom.Element)
+			var tagName string
+			if tagInfo, err := tag.Find(e.Tag); err == nil {
+				tagName = tagInfo.Name
+			}
+			tagDescriptionViews.tagNameView.SetText(tagName)
+			tagDescriptionViews.vrView.SetText(e.RawValueRepresentation)
+			tagDescriptionViews.lengthView.SetText(fmt.Sprint(e.ValueLength))
+
+			var value string
+			if e.RawValueRepresentation != vrraw.Sequence && e.ValueLength < 150 {
+				value = e.Value.String()
+			}
+			tagDescriptionViews.valueView.SetText(value)
+			//elementText := fmt.Sprintf("\t%04x %s (%s): %s", e.Tag.Element, tagName, e.RawValueRepresentation, value)
+		}
 	})
 
 	// key handlings
@@ -110,21 +140,18 @@ func main() {
 		return event
 	})
 
-	tagDescription := tagDescView()
-
-	grid := tview.NewGrid().
-		SetRows(-1).
-		SetColumns(-2, -1).
-		SetBorders(true).
-		AddItem(tree, 0, 0, 1, 1, 0, 0, true).
-		AddItem(tagDescription, 0, 1, 1, 1, 0, 0, false)
-
-	if err := app.SetRoot(grid, true).Run(); err != nil {
+	if err := app.SetRoot(mainGrid, true).Run(); err != nil {
 		panic(err)
 	}
 }
 
-func tagDescView() *tview.Grid {
+type tagDescViews struct {
+	grid                                       *tview.Grid
+	tagNameView, vrView, lengthView, valueView *tview.TextView
+}
+
+func tagDescView() *tagDescViews {
+
 	grid := tview.NewGrid().
 		SetRows(2, 1, 1, 1, -1).
 		SetColumns(-1, -4)
@@ -168,5 +195,5 @@ func tagDescView() *tview.Grid {
 	grid.AddItem(valueLabel, 3, 0, 1, 1, 0, 0, false)
 	grid.AddItem(value, 3, 1, 1, 1, 0, 0, false)
 
-	return grid
+	return &tagDescViews{grid, header, vr, length, value}
 }
