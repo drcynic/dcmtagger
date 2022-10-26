@@ -65,11 +65,12 @@ func main() {
 	tagDescriptionViews := tagDescView()
 
 	mainGrid := tview.NewGrid().
-		SetRows(-1).
+		SetRows(-1, 1).
 		SetColumns(-1, -2).
 		SetBorders(true).
 		AddItem(tree, 0, 0, 1, 1, 0, 0, true).
-		AddItem(tagDescriptionViews.grid, 0, 1, 1, 1, 0, 0, false)
+		AddItem(tagDescriptionViews.grid, 0, 1, 1, 1, 0, 0, false).
+		AddItem(tview.NewInputField(), 1, 0, 1, 2, 0, 0, false)
 
 	tree.SetSelectedFunc(func(node *tview.TreeNode) {
 		node.SetExpanded(!node.IsExpanded())
