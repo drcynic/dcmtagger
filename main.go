@@ -37,7 +37,7 @@ func main() {
 
 	// create tree nodes with dicom tags
 	app := tview.NewApplication()
-	rootDir := ""
+	rootDir := args.Input
 	root := tview.NewTreeNode(rootDir).SetSelectable(false)
 	tree := tview.NewTreeView().SetRoot(root).SetCurrentNode(root)
 	var currentGroupNode *tview.TreeNode
