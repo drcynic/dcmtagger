@@ -22,6 +22,13 @@ type args struct {
 
 func (args) Version() string { return "Version " + version }
 
+type EditMode int
+
+const (
+	TreeMode EditMode = iota
+	CmdlineMode
+)
+
 func main() {
 	var args args
 	p := arg.MustParse(&args)
@@ -63,6 +70,7 @@ func main() {
 	}
 
 	tagDescriptionViews := tagDescView()
+	cmdline := tview.NewInputField()
 
 	mainGrid := tview.NewGrid().
 		SetRows(-1, 1).
@@ -70,7 +78,7 @@ func main() {
 		SetBorders(true).
 		AddItem(tree, 0, 0, 1, 1, 0, 0, true).
 		AddItem(tagDescriptionViews.grid, 0, 1, 1, 1, 0, 0, false).
-		AddItem(tview.NewInputField(), 1, 0, 1, 2, 0, 0, false)
+		AddItem(cmdline, 1, 0, 1, 2, 0, 0, false)
 
 	tree.SetSelectedFunc(func(node *tview.TreeNode) {
 		node.SetExpanded(!node.IsExpanded())
@@ -104,6 +112,10 @@ func main() {
 	// key handlings
 	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Rune() {
+		case '/':
+			app.SetFocus(cmdline)
+			cmdline.SetText("/")
+			return nil
 		case 'E':
 			for _, child := range root.GetChildren() {
 				child.ExpandAll()
@@ -137,6 +149,16 @@ func main() {
 			return nil
 		}
 
+		return event
+	})
+
+	cmdline.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+		case tcell.KeyEsc:
+			cmdline.SetText("")
+			app.SetFocus(tree)
+			return nil
+		}
 		return event
 	})
 
