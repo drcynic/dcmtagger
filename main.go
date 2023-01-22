@@ -127,7 +127,13 @@ func main() {
 			}
 			return nil
 		case 'J':
-			// todo: jump to next node on parent level or if on expandable node to next on same level
+			currentNode := tree.GetCurrentNode()
+			if currentNode.IsExpanded() {
+				numChildren := len(currentNode.GetChildren())
+				tree.Move(numChildren + 1)
+			} else {
+				tree.Move(1)
+			}
 			return nil
 		case 'h':
 			currentNode := tree.GetCurrentNode()
