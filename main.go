@@ -111,48 +111,69 @@ func main() {
 
 	// key handlings
 	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		switch event.Rune() {
-		case '/':
-			app.SetFocus(cmdline)
-			cmdline.SetText("/")
+		switch key := event.Key(); key {
+		case tcell.KeyCtrlD:
+			_, _, _, height := tree.GetInnerRect()
+			tree.Move(height / 2)
 			return nil
-		case 'E':
-			for _, child := range root.GetChildren() {
-				child.ExpandAll()
-			}
+		case tcell.KeyCtrlU:
+			_, _, _, height := tree.GetInnerRect()
+			tree.Move(-height / 2)
 			return nil
-		case 'C':
-			for _, child := range root.GetChildren() {
-				child.CollapseAll()
-			}
-			return nil
-		case 'J':
-			currentNode := tree.GetCurrentNode()
-			if currentNode.IsExpanded() {
-				numChildren := len(currentNode.GetChildren())
-				tree.Move(numChildren + 1)
-			} else {
+		case tcell.KeyRune:
+			switch event.Rune() {
+			case '/':
+				app.SetFocus(cmdline)
+				cmdline.SetText("/")
+				return nil
+			case 'E':
+				for _, child := range root.GetChildren() {
+					child.ExpandAll()
+				}
+				return nil
+			case 'C':
+				for _, child := range root.GetChildren() {
+					child.CollapseAll()
+				}
+				return nil
+			case 'J':
+				currentNode := tree.GetCurrentNode()
+				expaned := currentNode.IsExpanded()
+				if expaned {
+					currentNode.Collapse()
+				}
 				tree.Move(1)
-			}
-			return nil
-		case 'h':
-			currentNode := tree.GetCurrentNode()
-			numChildren := len(currentNode.GetChildren())
-			if numChildren == 0 || !currentNode.IsExpanded() {
-				return tcell.NewEventKey(tcell.KeyRune, 'K', tcell.ModNone)
-			} else {
-				currentNode.Collapse()
+				if expaned {
+					currentNode.Expand()
+				}
+				return nil
+			case 'K':
+				currentNode := tree.GetCurrentNode()
+				level := currentNode.GetLevel()
+				nextNode := tree.Move(-1).GetCurrentNode()
+				for nextNode != root && nextNode.GetLevel() != level {
+					nextNode = tree.Move(-1).GetCurrentNode()
+				}
+				return nil
+			case 'h':
+				currentNode := tree.GetCurrentNode()
+				numChildren := len(currentNode.GetChildren())
+				if numChildren == 0 || !currentNode.IsExpanded() {
+					return tcell.NewEventKey(tcell.KeyRune, 'K', tcell.ModNone)
+				} else {
+					currentNode.Collapse()
+					return nil
+				}
+			case 'l':
+				currentNode := tree.GetCurrentNode()
+				if len(currentNode.GetChildren()) > 0 && !currentNode.IsExpanded() {
+					currentNode.SetExpanded(true)
+				}
+				return nil
+			case 'q':
+				app.Stop()
 				return nil
 			}
-		case 'l':
-			currentNode := tree.GetCurrentNode()
-			if len(currentNode.GetChildren()) > 0 && !currentNode.IsExpanded() {
-				currentNode.SetExpanded(true)
-			}
-			return nil
-		case 'q':
-			app.Stop()
-			return nil
 		}
 
 		return event
