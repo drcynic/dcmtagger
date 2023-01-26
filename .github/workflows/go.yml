@@ -15,6 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+        
+    - name: Git describe
+      id: ghd
+      uses: proudust/gh-describe@v1
 
     - name: Set up Go
       uses: actions/setup-go@v3
@@ -22,7 +26,7 @@ jobs:
         go-version: 1.19
 
     - name: Build
-      run: go build -v -ldflags "-X main.version=`git describe --tags`" ./...
+      run: go build -v -ldflags "-X main.version=${{ steps.ghd.outputs.describe }}" ./...
 
     - name: Test
       run: go test -v ./...
