@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/alexflint/go-arg"
 	"github.com/gdamore/tcell/v2"
@@ -72,6 +73,41 @@ func main() {
 	tagDescriptionViews := tagDescView()
 	cmdline := tview.NewInputField()
 
+	cmdline.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+		case tcell.KeyEsc:
+			cmdline.SetText("")
+			app.SetFocus(tree)
+			return nil
+		case tcell.KeyEnter:
+			cmdlineText := cmdline.GetText()
+			if strings.HasPrefix(cmdlineText, ":") {
+				if cmdlineText == ":q" {
+					app.Stop()
+					return nil
+				}
+			}
+		}
+
+		return event
+	})
+
+	cmdline.SetChangedFunc(func(text string) {
+		cmdlineText := text //cmdline.GetText()
+		if strings.HasPrefix(cmdlineText, "/") && len(cmdlineText) > 1 {
+			searchText := cmdlineText[1:]
+			searchText = strings.ToLower(searchText)
+			for _, child := range root.GetChildren() {
+				for _, element := range child.GetChildren() {
+					if strings.Contains(strings.ToLower(element.GetText()), searchText) {
+						tree.SetCurrentNode(element)
+						break
+					}
+				}
+			}
+		}
+	})
+
 	mainGrid := tview.NewGrid().
 		SetRows(-1, 1).
 		SetColumns(-1, -2).
@@ -126,6 +162,10 @@ func main() {
 				app.SetFocus(cmdline)
 				cmdline.SetText("/")
 				return nil
+			case ':':
+				app.SetFocus(cmdline)
+				cmdline.SetText(":")
+				return nil
 			case 'E':
 				for _, child := range root.GetChildren() {
 					child.ExpandAll()
@@ -179,16 +219,6 @@ func main() {
 		return event
 	})
 
-	cmdline.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		switch event.Key() {
-		case tcell.KeyEsc:
-			cmdline.SetText("")
-			app.SetFocus(tree)
-			return nil
-		}
-		return event
-	})
-
 	if err := app.SetRoot(mainGrid, true).Run(); err != nil {
 		panic(err)
 	}
@@ -200,38 +230,18 @@ type tagDescViews struct {
 }
 
 func tagDescView() *tagDescViews {
+	grid := tview.NewGrid().SetRows(2, 1, 1, 1, -1).SetColumns(-1, -4)
 
-	grid := tview.NewGrid().
-		SetRows(2, 1, 1, 1, -1).
-		SetColumns(-1, -4)
+	header := tview.NewTextView().SetTextAlign(tview.AlignCenter).SetText("<tag name here>")
 
-	header := tview.NewTextView().
-		SetTextAlign(tview.AlignCenter).
-		SetText("<tag name here>")
+	vrLabel := tview.NewTextView().SetTextAlign(tview.AlignRight).SetText("VR: ")
+	vr := tview.NewTextView().SetTextAlign(tview.AlignLeft).SetText("PN")
 
-	vrLabel := tview.NewTextView().
-		SetTextAlign(tview.AlignRight).
-		SetText("VR: ")
+	lengthLabel := tview.NewTextView().SetTextAlign(tview.AlignRight).SetText("Length: ")
+	length := tview.NewTextView().SetTextAlign(tview.AlignLeft).SetText("123")
 
-	vr := tview.NewTextView().
-		SetTextAlign(tview.AlignLeft).
-		SetText("PN")
-
-	lengthLabel := tview.NewTextView().
-		SetTextAlign(tview.AlignRight).
-		SetText("Length: ")
-
-	length := tview.NewTextView().
-		SetTextAlign(tview.AlignLeft).
-		SetText("123")
-
-	valueLabel := tview.NewTextView().
-		SetTextAlign(tview.AlignRight).
-		SetText("Value: ")
-
-	value := tview.NewTextView().
-		SetTextAlign(tview.AlignLeft).
-		SetText("SOMATOM Definition")
+	valueLabel := tview.NewTextView().SetTextAlign(tview.AlignRight).SetText("Value: ")
+	value := tview.NewTextView().SetTextAlign(tview.AlignLeft).SetText("SOMATOM Definition")
 
 	grid.AddItem(header, 0, 0, 1, 2, 0, 0, false)
 
