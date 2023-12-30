@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -13,12 +14,10 @@ import (
 	"github.com/suyashkumar/dicom/pkg/vrraw"
 )
 
-var (
-	version = "unknown"
-)
+var version = "unknown"
 
 type args struct {
-	Input string `arg:"positional" help:"The DICOM input file"`
+	Input string `arg:"positional" help:"The DICOM input file or directory"`
 }
 
 func (args) Version() string { return "Version " + version }
@@ -30,44 +29,91 @@ const (
 	CmdlineMode
 )
 
+func parseDicomFile(filename string) (dicom.Dataset, error) {
+	dataset, err := dicom.ParseFile(filename, nil)
+
+	return dataset, err
+}
+
 func main() {
 	var args args
 	p := arg.MustParse(&args)
 	if args.Input == "" {
-		p.Fail("missing DICOM input file")
+		p.Fail("Missing DICOM input file")
 	}
 
-	dataset, err := dicom.ParseFile(args.Input, nil)
+	fileInfo, err := os.Stat(args.Input)
 	if err != nil {
 		fmt.Printf("Could not read DICOM file: '%s'\n", err.Error())
 		os.Exit(1)
 	}
 
+	inputFiles := make(map[string]*dicom.Dataset)
+	if fileInfo.IsDir() {
+		println("directory")
+		dir := fileInfo.Name()
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("%v\n", files)
+
+		for _, f := range files {
+			if f.IsDir() {
+				continue
+			}
+			fmt.Println(f.Name())
+			dataset, err := dicom.ParseFile(dir+"/"+f.Name(), nil)
+			if err != nil {
+				fmt.Printf("Could not read DICOM file: '%s'\n", err.Error())
+				os.Exit(1)
+			}
+			// fmt.Printf("Dataset: %s\n", dataset.String())
+			inputFiles[f.Name()] = &dataset
+		}
+		// os.Exit(1)
+	} else {
+		dataset, err := dicom.ParseFile(args.Input, nil)
+		if err != nil {
+			fmt.Printf("Could not read DICOM file: '%s'\n", err.Error())
+			os.Exit(1)
+		}
+		// fmt.Printf("Dataset: %s\n", dataset.String())
+		inputFiles[args.Input] = &dataset
+	}
+
 	// create tree nodes with dicom tags
 	app := tview.NewApplication()
 	rootDir := args.Input
-	root := tview.NewTreeNode(rootDir).SetSelectable(false)
+	root := tview.NewTreeNode(rootDir).SetSelectable(true)
 	tree := tview.NewTreeView().SetRoot(root).SetCurrentNode(root)
-	var currentGroupNode *tview.TreeNode
-	var currentGroup uint16
-	for _, e := range dataset.Elements {
-		if currentGroup != e.Tag.Group {
-			currentGroup = e.Tag.Group
-			groupTagText := fmt.Sprintf("%04x", e.Tag.Group)
-			currentGroupNode = tview.NewTreeNode(groupTagText).SetSelectable(true)
-			root.AddChild(currentGroupNode)
-			//fmt.Printf("%s\n", groupTagText)
-		}
 
-		var tagName string
-		if tagInfo, err := tag.Find(e.Tag); err == nil {
-			tagName = tagInfo.Name
-		}
+	for filename, dataset := range inputFiles {
+		println("create node for:", filename)
+		fileNode := tview.NewTreeNode(filename).SetSelectable(true)
+		root.AddChild(fileNode)
 
-		elementText := fmt.Sprintf("\t%04x %s", e.Tag.Element, tagName)
-		elementNode := tview.NewTreeNode(elementText).SetSelectable(true).SetReference(e)
-		currentGroupNode.AddChild(elementNode)
-		//fmt.Printf("\t%s\n", elementText)
+		var currentGroupNode *tview.TreeNode
+		var currentGroup uint16
+		for _, e := range dataset.Elements {
+			if currentGroup != e.Tag.Group {
+				currentGroup = e.Tag.Group
+				groupTagText := fmt.Sprintf("%04x", e.Tag.Group)
+				currentGroupNode = tview.NewTreeNode(groupTagText).SetSelectable(true)
+				fileNode.AddChild(currentGroupNode)
+				// fmt.Printf("%s\n", groupTagText)
+			}
+
+			var tagName string
+			if tagInfo, err := tag.Find(e.Tag); err == nil {
+				tagName = tagInfo.Name
+			}
+
+			elementText := fmt.Sprintf("\t%04x %s", e.Tag.Element, tagName)
+			elementNode := tview.NewTreeNode(elementText).SetSelectable(true).SetReference(e)
+			currentGroupNode.AddChild(elementNode)
+			// fmt.Printf("\t%s\n", elementText)
+		}
 	}
 
 	tagDescriptionViews := tagDescView()
@@ -93,7 +139,7 @@ func main() {
 	})
 
 	cmdline.SetChangedFunc(func(text string) {
-		cmdlineText := text //cmdline.GetText()
+		cmdlineText := text // cmdline.GetText()
 		if strings.HasPrefix(cmdlineText, "/") && len(cmdlineText) > 1 {
 			searchText := cmdlineText[1:]
 			searchText = strings.ToLower(searchText)
@@ -141,7 +187,7 @@ func main() {
 				value = e.Value.String()
 			}
 			tagDescriptionViews.valueView.SetText(value)
-			//elementText := fmt.Sprintf("\t%04x %s (%s): %s", e.Tag.Element, tagName, e.RawValueRepresentation, value)
+			// elementText := fmt.Sprintf("\t%04x %s (%s): %s", e.Tag.Element, tagName, e.RawValueRepresentation, value)
 		}
 	})
 
