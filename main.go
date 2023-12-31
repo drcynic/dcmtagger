@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
@@ -29,10 +28,40 @@ const (
 	CmdlineMode
 )
 
-func parseDicomFile(filename string) (dicom.Dataset, error) {
-	dataset, err := dicom.ParseFile(filename, nil)
+func parseDicomFiles(path string) (map[string]*dicom.Dataset, error) {
+	datasetsByFilename := make(map[string]*dicom.Dataset)
+	pathInfo, err := os.Stat(path)
+	if err != nil {
+		return datasetsByFilename, err
+	}
 
-	return dataset, err
+	if pathInfo.IsDir() {
+		dir := pathInfo.Name()
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			return datasetsByFilename, err
+		}
+
+		for _, f := range files {
+			if f.IsDir() {
+				continue
+			}
+			dataset, err := dicom.ParseFile(dir+"/"+f.Name(), nil)
+			if err != nil {
+				return datasetsByFilename, err
+			}
+			datasetsByFilename[f.Name()] = &dataset
+		}
+		// os.Exit(1)
+	} else {
+		dataset, err := dicom.ParseFile(path, nil)
+		if err != nil {
+			return datasetsByFilename, err
+		}
+		datasetsByFilename[pathInfo.Name()] = &dataset
+	}
+
+	return datasetsByFilename, err
 }
 
 func main() {
@@ -42,44 +71,10 @@ func main() {
 		p.Fail("Missing DICOM input file")
 	}
 
-	fileInfo, err := os.Stat(args.Input)
+	datasetsByFilename, err := parseDicomFiles(args.Input)
 	if err != nil {
-		fmt.Printf("Could not read DICOM file: '%s'\n", err.Error())
-		os.Exit(1)
-	}
-
-	inputFiles := make(map[string]*dicom.Dataset)
-	if fileInfo.IsDir() {
-		println("directory")
-		dir := fileInfo.Name()
-		files, err := os.ReadDir(dir)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("%v\n", files)
-
-		for _, f := range files {
-			if f.IsDir() {
-				continue
-			}
-			fmt.Println(f.Name())
-			dataset, err := dicom.ParseFile(dir+"/"+f.Name(), nil)
-			if err != nil {
-				fmt.Printf("Could not read DICOM file: '%s'\n", err.Error())
-				os.Exit(1)
-			}
-			// fmt.Printf("Dataset: %s\n", dataset.String())
-			inputFiles[f.Name()] = &dataset
-		}
-		// os.Exit(1)
-	} else {
-		dataset, err := dicom.ParseFile(args.Input, nil)
-		if err != nil {
-			fmt.Printf("Could not read DICOM file: '%s'\n", err.Error())
-			os.Exit(1)
-		}
-		// fmt.Printf("Dataset: %s\n", dataset.String())
-		inputFiles[args.Input] = &dataset
+		fmt.Printf("Error reading input: '%s'\n", err.Error())
+		return
 	}
 
 	// create tree nodes with dicom tags
@@ -88,10 +83,13 @@ func main() {
 	root := tview.NewTreeNode(rootDir).SetSelectable(true)
 	tree := tview.NewTreeView().SetRoot(root).SetCurrentNode(root)
 
-	for filename, dataset := range inputFiles {
-		println("create node for:", filename)
+	for filename, dataset := range datasetsByFilename {
 		fileNode := tview.NewTreeNode(filename).SetSelectable(true)
-		root.AddChild(fileNode)
+		if len(datasetsByFilename) == 1 {
+			tree.SetRoot(fileNode) // only one file, so this name is root then
+		} else {
+			root.AddChild(fileNode)
+		}
 
 		var currentGroupNode *tview.TreeNode
 		var currentGroup uint16
@@ -101,7 +99,6 @@ func main() {
 				groupTagText := fmt.Sprintf("%04x", e.Tag.Group)
 				currentGroupNode = tview.NewTreeNode(groupTagText).SetSelectable(true)
 				fileNode.AddChild(currentGroupNode)
-				// fmt.Printf("%s\n", groupTagText)
 			}
 
 			var tagName string
@@ -112,7 +109,6 @@ func main() {
 			elementText := fmt.Sprintf("\t%04x %s", e.Tag.Element, tagName)
 			elementNode := tview.NewTreeNode(elementText).SetSelectable(true).SetReference(e)
 			currentGroupNode.AddChild(elementNode)
-			// fmt.Printf("\t%s\n", elementText)
 		}
 	}
 
