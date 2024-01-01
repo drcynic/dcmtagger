@@ -108,6 +108,49 @@ func sortTreeByFilename(rootDir string, tree *tview.TreeView, datasetsWithFilena
 	return tree, root
 }
 
+func sortTreeByTag(rootDir string, tree *tview.TreeView, datasetsWithFilename []DatasetEntry) (*tview.TreeView, *tview.TreeNode) {
+	if len(datasetsWithFilename) == 1 {
+		return sortTreeByFilename(rootDir, tree, datasetsWithFilename) // sortying by tag doesn't make sense for single file
+	}
+
+	if tree.GetRoot() != nil {
+		tree.GetRoot().ClearChildren()
+	}
+
+	root := tview.NewTreeNode(rootDir).SetSelectable(true)
+	tree.SetRoot(root).SetCurrentNode(root)
+	groupNodesByGroupTag := make(map[uint16]*tview.TreeNode)
+	tagNodesByTag := make(map[tag.Tag]*tview.TreeNode)
+	for _, entry := range datasetsWithFilename {
+		for _, e := range entry.dataset.Elements {
+			currentGroupNode, ok := groupNodesByGroupTag[e.Tag.Group]
+			if !ok {
+				// currentGroup = e.Tag.Group
+				groupTagText := fmt.Sprintf("%04x", e.Tag.Group)
+				currentGroupNode = tview.NewTreeNode(groupTagText).SetSelectable(true)
+				root.AddChild(currentGroupNode)
+				groupNodesByGroupTag[e.Tag.Group] = currentGroupNode
+			}
+
+			tagNode, ok := tagNodesByTag[e.Tag]
+			if !ok {
+				var tagName string
+				if tagInfo, err := tag.Find(e.Tag); err == nil {
+					tagName = tagInfo.Name
+				}
+				elementText := fmt.Sprintf("\t%04x %s", e.Tag.Element, tagName)
+				tagNode = tview.NewTreeNode(elementText).SetSelectable(true).SetReference(e)
+				currentGroupNode.AddChild(tagNode)
+				tagNodesByTag[e.Tag] = tagNode
+			}
+
+			elementNode := tview.NewTreeNode(entry.filename).SetSelectable(true).SetReference(e)
+			tagNode.AddChild(elementNode)
+		}
+	}
+	return tree, root
+}
+
 func main() {
 	var args args
 	p := arg.MustParse(&args)
@@ -126,6 +169,7 @@ func main() {
 	rootDir := args.Input
 	tree := tview.NewTreeView()
 	tree, root := sortTreeByFilename(rootDir, tree, datasetsByFilename[:])
+	// tree, root = sortTreeByTag(rootDir, tree, datasetsByFilename[:])
 
 	tagDescriptionViews := tagDescView()
 	cmdline := tview.NewInputField()
