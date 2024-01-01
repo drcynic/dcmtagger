@@ -64,28 +64,16 @@ func parseDicomFiles(path string) (map[string]*dicom.Dataset, error) {
 	return datasetsByFilename, err
 }
 
-func main() {
-	var args args
-	p := arg.MustParse(&args)
-	if args.Input == "" {
-		p.Fail("Missing DICOM input file")
+func sortTreeByFilename(rootDir string, tree *tview.TreeView, datasetsByFilename *map[string]*dicom.Dataset) (*tview.TreeView, *tview.TreeNode) {
+	if tree.GetRoot() != nil {
+		tree.GetRoot().ClearChildren()
 	}
-
-	datasetsByFilename, err := parseDicomFiles(args.Input)
-	if err != nil {
-		fmt.Printf("Error reading input: '%s'\n", err.Error())
-		return
-	}
-
-	// create tree nodes with dicom tags
-	app := tview.NewApplication()
-	rootDir := args.Input
 	root := tview.NewTreeNode(rootDir).SetSelectable(true)
-	tree := tview.NewTreeView().SetRoot(root).SetCurrentNode(root)
+	tree.SetRoot(root).SetCurrentNode(root)
 
-	for filename, dataset := range datasetsByFilename {
+	for filename, dataset := range *datasetsByFilename {
 		fileNode := tview.NewTreeNode(filename).SetSelectable(true)
-		if len(datasetsByFilename) == 1 {
+		if len(*datasetsByFilename) == 1 {
 			tree.SetRoot(fileNode) // only one file, so this name is root then
 		} else {
 			root.AddChild(fileNode)
@@ -111,6 +99,28 @@ func main() {
 			currentGroupNode.AddChild(elementNode)
 		}
 	}
+
+	return tree, root
+}
+
+func main() {
+	var args args
+	p := arg.MustParse(&args)
+	if args.Input == "" {
+		p.Fail("Missing DICOM input file")
+	}
+
+	datasetsByFilename, err := parseDicomFiles(args.Input)
+	if err != nil {
+		fmt.Printf("Error reading input: '%s'\n", err.Error())
+		return
+	}
+
+	// create tree nodes with dicom tags
+	app := tview.NewApplication()
+	rootDir := args.Input
+	tree := tview.NewTreeView()
+	tree, root := sortTreeByFilename(rootDir, tree, &datasetsByFilename)
 
 	tagDescriptionViews := tagDescView()
 	cmdline := tview.NewInputField()
