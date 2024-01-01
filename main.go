@@ -28,18 +28,23 @@ const (
 	CmdlineMode
 )
 
-func parseDicomFiles(path string) (map[string]*dicom.Dataset, error) {
-	datasetsByFilename := make(map[string]*dicom.Dataset)
+type DatasetEntry struct {
+	filename string
+	dataset  dicom.Dataset
+}
+
+func parseDicomFiles(path string) ([]DatasetEntry, error) {
+	datasetsWithFilename := make([]DatasetEntry, 0)
 	pathInfo, err := os.Stat(path)
 	if err != nil {
-		return datasetsByFilename, err
+		return datasetsWithFilename, err
 	}
 
 	if pathInfo.IsDir() {
 		dir := pathInfo.Name()
 		files, err := os.ReadDir(dir)
 		if err != nil {
-			return datasetsByFilename, err
+			return datasetsWithFilename, err
 		}
 
 		for _, f := range files {
@@ -48,32 +53,32 @@ func parseDicomFiles(path string) (map[string]*dicom.Dataset, error) {
 			}
 			dataset, err := dicom.ParseFile(dir+"/"+f.Name(), nil)
 			if err != nil {
-				return datasetsByFilename, err
+				return datasetsWithFilename, err
 			}
-			datasetsByFilename[f.Name()] = &dataset
+			datasetsWithFilename = append(datasetsWithFilename, DatasetEntry{f.Name(), dataset})
 		}
 		// os.Exit(1)
 	} else {
 		dataset, err := dicom.ParseFile(path, nil)
 		if err != nil {
-			return datasetsByFilename, err
+			return datasetsWithFilename, err
 		}
-		datasetsByFilename[pathInfo.Name()] = &dataset
+		datasetsWithFilename = append(datasetsWithFilename, DatasetEntry{pathInfo.Name(), dataset})
 	}
 
-	return datasetsByFilename, err
+	return datasetsWithFilename, err
 }
 
-func sortTreeByFilename(rootDir string, tree *tview.TreeView, datasetsByFilename *map[string]*dicom.Dataset) (*tview.TreeView, *tview.TreeNode) {
+func sortTreeByFilename(rootDir string, tree *tview.TreeView, datasetsWithFilename []DatasetEntry) (*tview.TreeView, *tview.TreeNode) {
 	if tree.GetRoot() != nil {
 		tree.GetRoot().ClearChildren()
 	}
 	root := tview.NewTreeNode(rootDir).SetSelectable(true)
 	tree.SetRoot(root).SetCurrentNode(root)
 
-	for filename, dataset := range *datasetsByFilename {
-		fileNode := tview.NewTreeNode(filename).SetSelectable(true)
-		if len(*datasetsByFilename) == 1 {
+	for _, entry := range datasetsWithFilename {
+		fileNode := tview.NewTreeNode(entry.filename).SetSelectable(true)
+		if len(datasetsWithFilename) == 1 {
 			tree.SetRoot(fileNode) // only one file, so this name is root then
 		} else {
 			root.AddChild(fileNode)
@@ -81,7 +86,7 @@ func sortTreeByFilename(rootDir string, tree *tview.TreeView, datasetsByFilename
 
 		var currentGroupNode *tview.TreeNode
 		var currentGroup uint16
-		for _, e := range dataset.Elements {
+		for _, e := range entry.dataset.Elements {
 			if currentGroup != e.Tag.Group {
 				currentGroup = e.Tag.Group
 				groupTagText := fmt.Sprintf("%04x", e.Tag.Group)
@@ -120,7 +125,7 @@ func main() {
 	app := tview.NewApplication()
 	rootDir := args.Input
 	tree := tview.NewTreeView()
-	tree, root := sortTreeByFilename(rootDir, tree, &datasetsByFilename)
+	tree, root := sortTreeByFilename(rootDir, tree, datasetsByFilename[:])
 
 	tagDescriptionViews := tagDescView()
 	cmdline := tview.NewInputField()
