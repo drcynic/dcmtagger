@@ -151,6 +151,19 @@ func sortTreeByTag(rootDir string, tree *tview.TreeView, datasetsWithFilename []
 	return tree, root
 }
 
+func collapseAll(tree *tview.TreeView) {
+	for _, child := range tree.GetRoot().GetChildren() {
+		child.CollapseAll()
+	}
+}
+
+func collapseAllRecursive(node *tview.TreeNode) {
+	for _, child := range node.GetChildren() {
+		child.CollapseAll()
+		collapseAllRecursive(child)
+	}
+}
+
 func main() {
 	var args args
 	p := arg.MustParse(&args)
@@ -166,10 +179,26 @@ func main() {
 
 	// create tree nodes with dicom tags
 	app := tview.NewApplication()
+
 	rootDir := args.Input
 	tree := tview.NewTreeView()
 	tree, root := sortTreeByFilename(rootDir, tree, datasetsByFilename[:])
-	// tree, root = sortTreeByTag(rootDir, tree, datasetsByFilename[:])
+	collapseAllRecursive(root)
+
+	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+		case tcell.KeyRune:
+			switch event.Rune() {
+			case '1':
+				tree, root = sortTreeByFilename(rootDir, tree, datasetsByFilename[:])
+				collapseAllRecursive(root)
+			case '2':
+				tree, root = sortTreeByTag(rootDir, tree, datasetsByFilename[:])
+				collapseAllRecursive(root)
+			}
+		}
+		return event
+	})
 
 	tagDescriptionViews := tagDescView()
 	cmdline := tview.NewInputField()
@@ -273,9 +302,7 @@ func main() {
 				}
 				return nil
 			case 'C':
-				for _, child := range root.GetChildren() {
-					child.CollapseAll()
-				}
+				collapseAll(tree)
 				return nil
 			case 'J':
 				currentNode := tree.GetCurrentNode()
