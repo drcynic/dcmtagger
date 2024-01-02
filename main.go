@@ -173,7 +173,7 @@ func main() {
 				}
 				return nil
 			case 'C':
-				collapseAll(tree)
+				collapseAllChildren(tree.GetRoot())
 				return nil
 			case 'J':
 				currentNode := tree.GetCurrentNode()

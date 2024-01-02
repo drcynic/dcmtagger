@@ -45,8 +45,8 @@ func parseDicomFiles(path string) ([]DatasetEntry, error) {
 	return datasetsWithFilename, err
 }
 
-func collapseAll(tree *tview.TreeView) {
-	for _, child := range tree.GetRoot().GetChildren() {
+func collapseAllChildren(node *tview.TreeNode) {
+	for _, child := range node.GetChildren() {
 		child.CollapseAll()
 	}
 }
