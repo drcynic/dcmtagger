@@ -58,6 +58,19 @@ func collapseAllRecursive(node *tview.TreeNode) {
 	}
 }
 
+func collapseAllLeaves(node *tview.TreeNode) {
+	canCollapse := true
+	for _, child := range node.GetChildren() {
+		if len(child.GetChildren()) > 0 {
+			collapseAllLeaves(child)
+			canCollapse = false
+		}
+	}
+	if canCollapse {
+		node.CollapseAll()
+	}
+}
+
 func sortTreeByFilename(rootDir string, tree *tview.TreeView, datasetsWithFilename []DatasetEntry) (*tview.TreeView, *tview.TreeNode) {
 	if tree.GetRoot() != nil {
 		tree.GetRoot().ClearChildren()
@@ -115,7 +128,7 @@ func sortTreeByTag(rootDir string, tree *tview.TreeView, datasetsWithFilename []
 			currentGroupNode, ok := groupNodesByGroupTag[e.Tag.Group]
 			if !ok {
 				// currentGroup = e.Tag.Group
-				groupTagText := fmt.Sprintf("%04x", e.Tag.Group)
+				groupTagText := fmt.Sprintf("%04x/", e.Tag.Group)
 				currentGroupNode = tview.NewTreeNode(groupTagText).SetSelectable(true)
 				root.AddChild(currentGroupNode)
 				groupNodesByGroupTag[e.Tag.Group] = currentGroupNode
@@ -127,7 +140,7 @@ func sortTreeByTag(rootDir string, tree *tview.TreeView, datasetsWithFilename []
 				if tagInfo, err := tag.Find(e.Tag); err == nil {
 					tagName = tagInfo.Name
 				}
-				elementText := fmt.Sprintf("\t%04x %s", e.Tag.Element, tagName)
+				elementText := fmt.Sprintf("\t%04x %s/", e.Tag.Element, tagName)
 				tagNode = tview.NewTreeNode(elementText).SetSelectable(true).SetReference(e)
 				currentGroupNode.AddChild(tagNode)
 				tagNodesByTag[e.Tag] = tagNode
@@ -135,6 +148,65 @@ func sortTreeByTag(rootDir string, tree *tview.TreeView, datasetsWithFilename []
 
 			elementNode := tview.NewTreeNode(entry.filename).SetSelectable(true).SetReference(e)
 			tagNode.AddChild(elementNode)
+		}
+	}
+	return tree, root
+}
+
+func sortTreeByTagUnique(rootDir string, tree *tview.TreeView, datasetsWithFilename []DatasetEntry) (*tview.TreeView, *tview.TreeNode) {
+	if len(datasetsWithFilename) == 1 {
+		return sortTreeByFilename(rootDir, tree, datasetsWithFilename) // sortying by tag doesn't make sense for single file
+	}
+
+	if tree.GetRoot() != nil {
+		tree.GetRoot().ClearChildren()
+	}
+
+	root := tview.NewTreeNode(rootDir).SetSelectable(true)
+	tree.SetRoot(root).SetCurrentNode(root)
+
+	valuesByTag := make(map[tag.Tag]map[string]bool)
+	for _, entry := range datasetsWithFilename {
+		for _, e := range entry.dataset.Elements {
+			_, ok := valuesByTag[e.Tag]
+			if !ok {
+				valuesByTag[e.Tag] = make(map[string]bool)
+			}
+			valuesByTag[e.Tag][e.Value.String()] = true
+		}
+	}
+
+	groupNodesByGroupTag := make(map[uint16]*tview.TreeNode)
+	tagNodesByTag := make(map[tag.Tag]*tview.TreeNode)
+	for _, entry := range datasetsWithFilename {
+		for _, e := range entry.dataset.Elements {
+			currentGroupNode, ok := groupNodesByGroupTag[e.Tag.Group]
+			if !ok {
+				// currentGroup = e.Tag.Group
+				groupTagText := fmt.Sprintf("%04x/", e.Tag.Group)
+				currentGroupNode = tview.NewTreeNode(groupTagText).SetSelectable(true)
+				root.AddChild(currentGroupNode)
+				groupNodesByGroupTag[e.Tag.Group] = currentGroupNode
+			}
+
+			valuesForTag := valuesByTag[e.Tag]
+			if len(valuesForTag) > 1 {
+				// fmt.Printf("multiple values for tag %v\n", e.Tag)
+				tagNode, ok := tagNodesByTag[e.Tag]
+				if !ok {
+					var tagName string
+					if tagInfo, err := tag.Find(e.Tag); err == nil {
+						tagName = tagInfo.Name
+					}
+					elementText := fmt.Sprintf("\t%04x %s/", e.Tag.Element, tagName)
+					tagNode = tview.NewTreeNode(elementText).SetSelectable(true).SetReference(e)
+					currentGroupNode.AddChild(tagNode)
+					tagNodesByTag[e.Tag] = tagNode
+				}
+
+				elementNode := tview.NewTreeNode(entry.filename).SetSelectable(true).SetReference(e)
+				tagNode.AddChild(elementNode)
+			}
 		}
 	}
 	return tree, root

@@ -62,7 +62,10 @@ func main() {
 				collapseAllRecursive(root)
 			case '2':
 				tree, root = sortTreeByTag(rootDir, tree, datasetsByFilename[:])
-				collapseAllRecursive(root)
+				collapseAllLeaves(root)
+			case '3':
+				tree, root = sortTreeByTagUnique(rootDir, tree, datasetsByFilename[:])
+				collapseAllLeaves(root)
 			}
 		}
 		return event
@@ -119,7 +122,7 @@ func main() {
 	})
 
 	tree.SetChangedFunc(func(node *tview.TreeNode) {
-		if len(node.GetChildren()) > 0 {
+		if len(node.GetChildren()) > 0 || node.GetReference() == nil {
 			tagDescriptionViews.tagNameView.SetText("")
 			tagDescriptionViews.vrView.SetText("")
 			tagDescriptionViews.lengthView.SetText("")
