@@ -32,6 +32,21 @@ type DatasetEntry struct {
 	dataset  dicom.Dataset
 }
 
+func findNodeRecursive(node *tview.TreeNode, searchText string) *tview.TreeNode {
+	if strings.Contains(strings.ToLower(node.GetText()), searchText) {
+		return node
+	}
+
+	for _, child := range node.GetChildren() {
+		foundNode := findNodeRecursive(child, searchText)
+		if foundNode != nil {
+			return foundNode
+		}
+	}
+
+	return nil
+}
+
 func main() {
 	var args args
 	p := arg.MustParse(&args)
@@ -107,6 +122,10 @@ func main() {
 					return nil
 				}
 			}
+			if strings.HasPrefix(cmdlineText, "/") {
+				app.SetFocus(tree)
+				return nil
+			}
 		}
 
 		return event
@@ -116,14 +135,12 @@ func main() {
 		cmdlineText := text // cmdline.GetText()
 		if strings.HasPrefix(cmdlineText, "/") && len(cmdlineText) > 1 {
 			searchText := cmdlineText[1:]
+			statusLine.SetText(searchText)
 			searchText = strings.ToLower(searchText)
-			for _, child := range root.GetChildren() {
-				for _, element := range child.GetChildren() {
-					if strings.Contains(strings.ToLower(element.GetText()), searchText) {
-						tree.SetCurrentNode(element)
-						break
-					}
-				}
+			foundNode := findNodeRecursive(root, searchText)
+			if foundNode != nil {
+				root.ExpandAll() // todo: only expand way to node
+				tree.SetCurrentNode(foundNode)
 			}
 		}
 	})
