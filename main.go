@@ -49,9 +49,15 @@ func main() {
 	app := tview.NewApplication()
 
 	rootDir := args.Input
+
+	tagDescriptionViews := tagDescView()
+	statusLine := tview.NewTextView()
+
 	tree := tview.NewTreeView()
 	tree, root := sortTreeByFilename(rootDir, tree, datasetsByFilename[:])
 	collapseAllRecursive(root)
+	statusLine.SetText("Sort by filename")
+	cmdline := tview.NewInputField()
 
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
@@ -60,19 +66,27 @@ func main() {
 			case '1':
 				tree, root = sortTreeByFilename(rootDir, tree, datasetsByFilename[:])
 				collapseAllRecursive(root)
+				statusLine.SetText("Sort by filename")
 			case '2':
 				tree, root = sortTreeByTag(rootDir, tree, datasetsByFilename[:])
 				collapseAllLeaves(root)
+				statusLine.SetText("Sort by tag")
 			case '3':
 				tree, root = sortTreeByTagUnique(rootDir, tree, datasetsByFilename[:])
 				collapseAllLeaves(root)
+				statusLine.SetText("Sort by tag, show only differnt tag values")
+			case '/':
+				app.SetFocus(cmdline)
+				cmdline.SetText("/")
+				return nil
+			case ':':
+				app.SetFocus(cmdline)
+				cmdline.SetText(":")
+				return nil
 			}
 		}
 		return event
 	})
-
-	tagDescriptionViews := tagDescView()
-	cmdline := tview.NewInputField()
 
 	cmdline.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
@@ -85,6 +99,11 @@ func main() {
 			if strings.HasPrefix(cmdlineText, ":") {
 				if cmdlineText == ":q" {
 					app.Stop()
+					return nil
+				}
+				if cmdlineText == ":" {
+					cmdline.SetText("")
+					app.SetFocus(tree)
 					return nil
 				}
 			}
@@ -110,12 +129,13 @@ func main() {
 	})
 
 	mainGrid := tview.NewGrid().
-		SetRows(-1, 1).
+		SetRows(-1, 1, 1).
 		SetColumns(-1, -2).
 		SetBorders(true).
 		AddItem(tree, 0, 0, 1, 1, 0, 0, true).
 		AddItem(tagDescriptionViews.grid, 0, 1, 1, 1, 0, 0, false).
-		AddItem(cmdline, 1, 0, 1, 2, 0, 0, false)
+		AddItem(statusLine, 1, 0, 1, 2, 0, 0, false).
+		AddItem(cmdline, 2, 0, 1, 2, 0, 0, false)
 
 	tree.SetSelectedFunc(func(node *tview.TreeNode) {
 		node.SetExpanded(!node.IsExpanded())
@@ -159,14 +179,6 @@ func main() {
 			return nil
 		case tcell.KeyRune:
 			switch event.Rune() {
-			case '/':
-				app.SetFocus(cmdline)
-				cmdline.SetText("/")
-				return nil
-			case ':':
-				app.SetFocus(cmdline)
-				cmdline.SetText(":")
-				return nil
 			case 'E':
 				for _, child := range root.GetChildren() {
 					child.ExpandAll()
