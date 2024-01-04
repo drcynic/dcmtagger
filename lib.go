@@ -71,6 +71,23 @@ func collapseAllLeaves(node *tview.TreeNode) {
 	}
 }
 
+// collects all nodes visible nodes and returns them in an array, also return the index of a reference node passed in a param
+func collectAllVisibleNodesOfLevel(level int, tree *tview.TreeView, refNode *tview.TreeNode) ([]*tview.TreeNode, int) {
+	foundNodes := make([]*tview.TreeNode, 0)
+	foundIndex := -1
+	tree.GetRoot().Walk(func(node, parent *tview.TreeNode) bool {
+		if node.GetLevel() == level {
+			foundNodes = append(foundNodes, node)
+			if node == refNode {
+				foundIndex = len(foundNodes) - 1
+			}
+		}
+		return true
+	})
+
+	return foundNodes, foundIndex
+}
+
 func sortTreeByFilename(rootDir string, tree *tview.TreeView, datasetsWithFilename []DatasetEntry) (*tview.TreeView, *tview.TreeNode) {
 	if tree.GetRoot() != nil {
 		tree.GetRoot().ClearChildren()

@@ -204,23 +204,18 @@ func main() {
 				currentNode.CollapseAll()
 				return nil
 			case 'J':
-				expaned := currentNode.IsExpanded()
-				if expaned {
-					currentNode.Collapse()
-				}
-				tree.Move(1)
-				if expaned {
-					currentNode.Expand()
+				level := currentNode.GetLevel()
+				nodesWithLevel, currentNodeIdx := collectAllVisibleNodesOfLevel(level, tree, currentNode)
+				if currentNodeIdx < len(nodesWithLevel)-1 {
+					tree.SetCurrentNode(nodesWithLevel[currentNodeIdx+1])
 				}
 				return nil
 			case 'K':
 				level := currentNode.GetLevel()
-
-				nextNode := tree.Move(-1).GetCurrentNode()
-				for nextNode != root && nextNode.GetLevel() != level {
-					nextNode = tree.Move(-1).GetCurrentNode()
+				nodesWithLevel, currentNodeIdx := collectAllVisibleNodesOfLevel(level, tree, currentNode)
+				if currentNodeIdx > 0 {
+					tree.SetCurrentNode(nodesWithLevel[currentNodeIdx-1])
 				}
-				tree.SetCurrentNode(nextNode)
 				return nil
 			case 'h':
 				return tcell.NewEventKey(tcell.KeyRune, 'K', tcell.ModNone)
