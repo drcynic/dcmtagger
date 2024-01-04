@@ -185,6 +185,7 @@ func main() {
 
 	// key handlings
 	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		currentNode := tree.GetCurrentNode()
 		switch key := event.Key(); key {
 		case tcell.KeyCtrlD:
 			_, _, _, height := tree.GetInnerRect()
@@ -197,15 +198,12 @@ func main() {
 		case tcell.KeyRune:
 			switch event.Rune() {
 			case 'E':
-				for _, child := range root.GetChildren() {
-					child.ExpandAll()
-				}
+				currentNode.ExpandAll()
 				return nil
 			case 'C':
-				collapseAllChildren(tree.GetRoot())
+				currentNode.CollapseAll()
 				return nil
 			case 'J':
-				currentNode := tree.GetCurrentNode()
 				expaned := currentNode.IsExpanded()
 				if expaned {
 					currentNode.Collapse()
@@ -216,26 +214,20 @@ func main() {
 				}
 				return nil
 			case 'K':
-				currentNode := tree.GetCurrentNode()
 				level := currentNode.GetLevel()
+
 				nextNode := tree.Move(-1).GetCurrentNode()
 				for nextNode != root && nextNode.GetLevel() != level {
 					nextNode = tree.Move(-1).GetCurrentNode()
 				}
+				tree.SetCurrentNode(nextNode)
 				return nil
 			case 'h':
-				currentNode := tree.GetCurrentNode()
-				numChildren := len(currentNode.GetChildren())
-				if numChildren == 0 || !currentNode.IsExpanded() {
-					return tcell.NewEventKey(tcell.KeyRune, 'K', tcell.ModNone)
-				} else {
-					currentNode.Collapse()
-					return nil
-				}
+				return tcell.NewEventKey(tcell.KeyRune, 'K', tcell.ModNone)
 			case 'l':
-				currentNode := tree.GetCurrentNode()
-				if len(currentNode.GetChildren()) > 0 && !currentNode.IsExpanded() {
+				if len(currentNode.GetChildren()) > 0 {
 					currentNode.SetExpanded(true)
+					tree.SetCurrentNode(currentNode.GetChildren()[0])
 				}
 				return nil
 			case 'q':
