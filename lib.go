@@ -87,6 +87,23 @@ func collectAllVisibleNodesOfLevel(level int, tree *tview.TreeView, refNode *tvi
 
 	return foundNodes, foundIndex
 }
+func moveUpSameLevel(tree *tview.TreeView) {
+	currentNode := tree.GetCurrentNode()
+	level := currentNode.GetLevel()
+	nodesWithLevel, currentNodeIdx := collectAllVisibleNodesOfLevel(level, tree, currentNode)
+	if currentNodeIdx > 0 {
+		tree.SetCurrentNode(nodesWithLevel[currentNodeIdx-1])
+	}
+}
+
+func moveDownSameLevel(tree *tview.TreeView) {
+	currentNode := tree.GetCurrentNode()
+	level := currentNode.GetLevel()
+	nodesWithLevel, currentNodeIdx := collectAllVisibleNodesOfLevel(level, tree, currentNode)
+	if currentNodeIdx < len(nodesWithLevel)-1 {
+		tree.SetCurrentNode(nodesWithLevel[currentNodeIdx+1])
+	}
+}
 
 func sortTreeByFilename(rootDir string, tree *tview.TreeView, datasetsWithFilename []DatasetEntry) (*tview.TreeView, *tview.TreeNode) {
 	if tree.GetRoot() != nil {
