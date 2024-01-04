@@ -186,6 +186,7 @@ func main() {
 	// key handlings
 	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		currentNode := tree.GetCurrentNode()
+
 		switch key := event.Key(); key {
 		case tcell.KeyCtrlD:
 			_, _, _, height := tree.GetInnerRect()
@@ -195,6 +196,16 @@ func main() {
 			_, _, _, height := tree.GetInnerRect()
 			tree.Move(-height / 2)
 			return nil
+		case tcell.KeyUp:
+			if event.Modifiers() == tcell.ModShift {
+				moveUpSameLevel(tree)
+				return nil
+			}
+		case tcell.KeyDown:
+			if event.Modifiers() == tcell.ModShift {
+				moveDownSameLevel(tree)
+				return nil
+			}
 		case tcell.KeyRune:
 			switch event.Rune() {
 			case 'E':
