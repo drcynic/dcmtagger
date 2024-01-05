@@ -119,6 +119,15 @@ func moveDownSameLevel(tree *tview.TreeView) {
 	}
 }
 
+func jumpToRoot(tree *tview.TreeView) {
+	tree.SetCurrentNode(tree.GetRoot())
+}
+
+func jumpToLastVisibleNode(tree *tview.TreeView) {
+	nodes := collectAllVisible(tree)
+	tree.SetCurrentNode(nodes[len(nodes)-1])
+}
+
 func sortTreeByFilename(rootDir string, tree *tview.TreeView, datasetsWithFilename []DatasetEntry) (*tview.TreeView, *tview.TreeNode) {
 	if tree.GetRoot() != nil {
 		tree.GetRoot().ClearChildren()

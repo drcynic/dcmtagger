@@ -27,8 +27,8 @@
 - shift + c - collapse recursively current node if collapse
 - shift + e - expand recursively current node if expandable
 
-- g - go to first node (root)
-- shift + g - go to last visible node
+- g, home - go to first node (root)
+- shift + g, end - go to last visible node
 - ctrl + u - half screen up in visible tree structure
 - ctrl + d - half screen down in visible tree structure
 

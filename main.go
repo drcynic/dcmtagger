@@ -206,6 +206,12 @@ func main() {
 				moveDownSameLevel(tree)
 				return nil
 			}
+		case tcell.KeyHome:
+			jumpToRoot(tree)
+			return nil
+		case tcell.KeyEnd:
+			jumpToLastVisibleNode(tree)
+			return nil
 		case tcell.KeyRune:
 			switch event.Rune() {
 			case 'E':
@@ -229,11 +235,10 @@ func main() {
 				}
 				return nil
 			case 'g':
-				tree.SetCurrentNode(root)
+				jumpToRoot(tree)
 				return nil
 			case 'G':
-				allVisible := collectAllVisible(tree)
-				tree.SetCurrentNode(allVisible[len(allVisible)-1])
+				jumpToLastVisibleNode(tree)
 				return nil
 			case 'q':
 				app.Stop()
