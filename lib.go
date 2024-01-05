@@ -71,26 +71,34 @@ func collapseAllLeaves(node *tview.TreeNode) {
 	}
 }
 
-// collects all nodes visible nodes and returns them in an array, also return the index of a reference node passed in a param
-func collectAllVisibleNodesOfLevel(level int, tree *tview.TreeView, refNode *tview.TreeNode) ([]*tview.TreeNode, int) {
+// collects all nodes visible nodes that pass the 'findPred' predicate and additionally returns the index of the node that passed the 'findIdxPred'
+func collectAllVisibleNodesWithPred(tree *tview.TreeView, findPred func(node *tview.TreeNode) bool, findIdxPred func(node *tview.TreeNode) bool) ([]*tview.TreeNode, int) {
 	foundNodes := make([]*tview.TreeNode, 0)
 	foundIndex := -1
 	tree.GetRoot().Walk(func(node, parent *tview.TreeNode) bool {
-		if node.GetLevel() == level {
+		if findPred(node) {
 			foundNodes = append(foundNodes, node)
-			if node == refNode {
+			if findIdxPred != nil && findIdxPred(node) {
 				foundIndex = len(foundNodes) - 1
 			}
 		}
-		return true
+		return node.IsExpanded()
 	})
 
 	return foundNodes, foundIndex
 }
+
+func getIsLevelPredicate(level int) func(node *tview.TreeNode) bool {
+	return func(node *tview.TreeNode) bool {
+		return node.GetLevel() == level
+	}
+}
+
 func moveUpSameLevel(tree *tview.TreeView) {
 	currentNode := tree.GetCurrentNode()
-	level := currentNode.GetLevel()
-	nodesWithLevel, currentNodeIdx := collectAllVisibleNodesOfLevel(level, tree, currentNode)
+	isLevelPred := getIsLevelPredicate(currentNode.GetLevel())
+	isSameNode := func(node *tview.TreeNode) bool { return node == currentNode }
+	nodesWithLevel, currentNodeIdx := collectAllVisibleNodesWithPred(tree, isLevelPred, isSameNode)
 	if currentNodeIdx > 0 {
 		tree.SetCurrentNode(nodesWithLevel[currentNodeIdx-1])
 	}
@@ -98,8 +106,9 @@ func moveUpSameLevel(tree *tview.TreeView) {
 
 func moveDownSameLevel(tree *tview.TreeView) {
 	currentNode := tree.GetCurrentNode()
-	level := currentNode.GetLevel()
-	nodesWithLevel, currentNodeIdx := collectAllVisibleNodesOfLevel(level, tree, currentNode)
+	isLevelPred := getIsLevelPredicate(currentNode.GetLevel())
+	isSameNode := func(node *tview.TreeNode) bool { return node == currentNode }
+	nodesWithLevel, currentNodeIdx := collectAllVisibleNodesWithPred(tree, isLevelPred, isSameNode)
 	if currentNodeIdx < len(nodesWithLevel)-1 {
 		tree.SetCurrentNode(nodesWithLevel[currentNodeIdx+1])
 	}
