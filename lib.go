@@ -71,6 +71,11 @@ func collapseAllLeaves(node *tview.TreeNode) {
 	}
 }
 
+func collectAllVisible(tree *tview.TreeView) []*tview.TreeNode {
+	foundNodes, _ := collectAllVisibleNodesWithPred(tree, func(node *tview.TreeNode) bool { return true }, nil)
+	return foundNodes
+}
+
 // collects all nodes visible nodes that pass the 'findPred' predicate and additionally returns the index of the node that passed the 'findIdxPred'
 func collectAllVisibleNodesWithPred(tree *tview.TreeView, findPred func(node *tview.TreeNode) bool, findIdxPred func(node *tview.TreeNode) bool) ([]*tview.TreeNode, int) {
 	foundNodes := make([]*tview.TreeNode, 0)

@@ -228,6 +228,13 @@ func main() {
 					tree.SetCurrentNode(currentNode.GetChildren()[0])
 				}
 				return nil
+			case 'g':
+				tree.SetCurrentNode(root)
+				return nil
+			case 'G':
+				allVisible := collectAllVisible(tree)
+				tree.SetCurrentNode(allVisible[len(allVisible)-1])
+				return nil
 			case 'q':
 				app.Stop()
 				return nil
