@@ -97,7 +97,11 @@ func collectSiblings(tree *tview.TreeView, refNode *tview.TreeNode) []*tview.Tre
 	foundNodes := make([]*tview.TreeNode, 0)
 	tree.GetRoot().Walk(func(node, parent *tview.TreeNode) bool {
 		if node == refNode {
-			foundNodes = parent.GetChildren()
+			if node == tree.GetRoot() {
+				foundNodes = append(foundNodes, node)
+			} else {
+				foundNodes = parent.GetChildren()
+			}
 			return false
 		}
 		return true
