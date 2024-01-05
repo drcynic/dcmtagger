@@ -158,7 +158,7 @@ func main() {
 		node.SetExpanded(!node.IsExpanded())
 	})
 
-	tree.SetChangedFunc(func(node *tview.TreeNode) {
+	changedHandler := func(node *tview.TreeNode) {
 		if len(node.GetChildren()) > 0 || node.GetReference() == nil {
 			tagDescriptionViews.tagNameView.SetText("")
 			tagDescriptionViews.vrView.SetText("")
@@ -181,7 +181,9 @@ func main() {
 			tagDescriptionViews.valueView.SetText(value)
 			// elementText := fmt.Sprintf("\t%04x %s (%s): %s", e.Tag.Element, tagName, e.RawValueRepresentation, value)
 		}
-	})
+	}
+
+	tree.SetChangedFunc(changedHandler)
 
 	// key handlings
 	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -191,38 +193,33 @@ func main() {
 		case tcell.KeyCtrlD:
 			_, _, _, height := tree.GetInnerRect()
 			tree.Move(height / 2)
-			return nil
 		case tcell.KeyCtrlU:
 			_, _, _, height := tree.GetInnerRect()
 			tree.Move(-height / 2)
-			return nil
 		case tcell.KeyUp:
 			if event.Modifiers() == tcell.ModShift {
 				moveUpSameLevel(tree)
-				return nil
+			} else {
+				return event // not handled, pass on
 			}
 		case tcell.KeyDown:
 			if event.Modifiers() == tcell.ModShift {
 				moveDownSameLevel(tree)
-				return nil
+			} else {
+				return event // not handled, pass on
 			}
 		case tcell.KeyHome:
 			jumpToRoot(tree)
-			return nil
 		case tcell.KeyEnd:
 			jumpToLastVisibleNode(tree)
-			return nil
 		case tcell.KeyRune:
 			switch event.Rune() {
 			case 'q':
 				app.Stop()
-				return nil
 			case 'J':
 				moveDownSameLevel(tree)
-				return nil
 			case 'K':
 				moveUpSameLevel(tree)
-				return nil
 			case 'h':
 				return tcell.NewEventKey(tcell.KeyRune, 'K', tcell.ModNone)
 			case 'l':
@@ -230,29 +227,30 @@ func main() {
 					currentNode.SetExpanded(true)
 					tree.SetCurrentNode(currentNode.GetChildren()[0])
 				}
-				return nil
 			case '0', '^':
 				moveToFirstSibling(tree)
-				return nil
 			case '$':
 				moveToLastSibling(tree)
-				return nil
 			case 'E':
 				currentNode.ExpandAll()
-				return nil
 			case 'C':
 				currentNode.CollapseAll()
-				return nil
 			case 'g':
 				jumpToRoot(tree)
-				return nil
 			case 'G':
 				jumpToLastVisibleNode(tree)
-				return nil
+			default:
+				return event // not handled, pass on
 			}
+		default:
+			return event // not handled, pass on
 		}
 
-		return event
+		if currentNode != tree.GetCurrentNode() {
+			changedHandler(tree.GetCurrentNode())
+		}
+
+		return nil
 	})
 
 	if err := app.SetRoot(mainGrid, true).Run(); err != nil {
