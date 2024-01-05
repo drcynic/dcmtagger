@@ -93,6 +93,33 @@ func collectAllVisibleNodesWithPred(tree *tview.TreeView, findPred func(node *tv
 	return foundNodes, foundIndex
 }
 
+func collectSiblings(tree *tview.TreeView, refNode *tview.TreeNode) []*tview.TreeNode {
+	foundNodes := make([]*tview.TreeNode, 0)
+	tree.GetRoot().Walk(func(node, parent *tview.TreeNode) bool {
+		if node == refNode {
+			foundNodes = parent.GetChildren()
+			return false
+		}
+		return true
+	})
+
+	return foundNodes
+}
+
+func moveToFirstSibling(tree *tview.TreeView) {
+	siblings := collectSiblings(tree, tree.GetCurrentNode())
+	if len(siblings) > 0 {
+		tree.SetCurrentNode(siblings[0])
+	}
+}
+
+func moveToLastSibling(tree *tview.TreeView) {
+	siblings := collectSiblings(tree, tree.GetCurrentNode())
+	if len(siblings) > 0 {
+		tree.SetCurrentNode(siblings[len(siblings)-1])
+	}
+}
+
 func getIsLevelPredicate(level int) func(node *tview.TreeNode) bool {
 	return func(node *tview.TreeNode) bool {
 		return node.GetLevel() == level

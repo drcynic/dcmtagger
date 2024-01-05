@@ -214,11 +214,8 @@ func main() {
 			return nil
 		case tcell.KeyRune:
 			switch event.Rune() {
-			case 'E':
-				currentNode.ExpandAll()
-				return nil
-			case 'C':
-				currentNode.CollapseAll()
+			case 'q':
+				app.Stop()
 				return nil
 			case 'J':
 				moveDownSameLevel(tree)
@@ -234,14 +231,23 @@ func main() {
 					tree.SetCurrentNode(currentNode.GetChildren()[0])
 				}
 				return nil
+			case '0', '^':
+				moveToFirstSibling(tree)
+				return nil
+			case '$':
+				moveToLastSibling(tree)
+				return nil
+			case 'E':
+				currentNode.ExpandAll()
+				return nil
+			case 'C':
+				currentNode.CollapseAll()
+				return nil
 			case 'g':
 				jumpToRoot(tree)
 				return nil
 			case 'G':
 				jumpToLastVisibleNode(tree)
-				return nil
-			case 'q':
-				app.Stop()
 				return nil
 			}
 		}

@@ -20,10 +20,12 @@
 - shift + k, shift + ↑ - move up all nodes in current hierarchy level - skips other hierarchy levels
 - h, ← - move to next parent
 - l, → - move to next child - if current node is collapsed it will be expanded
+- 0, ^ - move to first sibling in current hierachy level
+- $ - move to last sibling in current hierachy level
 
+- space, enter - toggle collapse state of current node
 - c - collapse current node if collapsable
 - e - expand current node if expandable
-- space, enter - toggle collapse state of current node
 - shift + c - collapse recursively current node if collapse
 - shift + e - expand recursively current node if expandable
 
