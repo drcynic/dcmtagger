@@ -24,9 +24,9 @@
 - $ - move to last sibling in current hierachy level
 
 - space, enter - toggle collapse state of current node
-- c - collapse current node if collapsable
-- e - expand current node if expandable
-- shift + c - collapse recursively current node if collapse
+- c - collapse current node and all its siblings
+- e - expand current node and all its siblings
+- shift + c - collapse recursively current node if collapsable
 - shift + e - expand recursively current node if expandable
 
 - g, home - go to first node (root)

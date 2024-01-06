@@ -228,6 +228,10 @@ func main() {
 				moveToFirstSibling(tree)
 			case '$':
 				moveToLastSibling(tree)
+			case 'e':
+				expandCurrentAndAllSiblings(tree)
+			case 'c':
+				collapseCurrentAndAllSiblings(tree)
 			case 'E':
 				currentNode.ExpandAll()
 			case 'C':
