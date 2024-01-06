@@ -110,6 +110,14 @@ func collectSiblings(tree *tview.TreeView, refNode *tview.TreeNode) []*tview.Tre
 	return foundNodes
 }
 
+func moveToFirstChild(tree *tview.TreeView) {
+	currentNode := tree.GetCurrentNode()
+	if len(currentNode.GetChildren()) > 0 {
+		currentNode.SetExpanded(true)
+		tree.SetCurrentNode(currentNode.GetChildren()[0])
+	}
+}
+
 func moveToFirstSibling(tree *tview.TreeView) {
 	siblings := collectSiblings(tree, tree.GetCurrentNode())
 	if len(siblings) > 0 {

@@ -223,10 +223,7 @@ func main() {
 			case 'h':
 				return tcell.NewEventKey(tcell.KeyRune, 'K', tcell.ModNone)
 			case 'l':
-				if len(currentNode.GetChildren()) > 0 {
-					currentNode.SetExpanded(true)
-					tree.SetCurrentNode(currentNode.GetChildren()[0])
-				}
+				moveToFirstChild(tree)
 			case '0', '^':
 				moveToFirstSibling(tree)
 			case '$':
