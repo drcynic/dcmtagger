@@ -51,7 +51,7 @@ func main() {
 	var args args
 	p := arg.MustParse(&args)
 	if args.Input == "" {
-		p.Fail("Missing DICOM input file")
+		p.Fail("Missing DICOM input file or directory")
 	}
 
 	datasetsByFilename, err := parseDicomFiles(args.Input)

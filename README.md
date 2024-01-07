@@ -15,10 +15,10 @@
 ### Treeview
 
 - j,↓ - move down in visible tree structure over all hierarchy levels
-- k, ↑ - move up in visible tree structure over all hierarchiy levels
-- shift + j, shift + ↓ - move down all nodes in current hierarchy level - skips other hierarchy levels
-- shift + k, shift + ↑ - move up all nodes in current hierarchy level - skips other hierarchy levels
-- h, ← - if leaf or collapsed: move to parent, if branch node and collapsed: move to parent if possible
+- k, ↑ - move up in visible tree structure over all hierarchy levels
+- shift + j, shift + ↓ - move down in current hierarchy level - skips other hierarchy levels
+- shift + k, shift + ↑ - move up in current hierarchy level - skips other hierarchy levels
+- h, ← - if branch node and expanded: collapse, if leaf or collapsed: move to parent if possible
 - l, → - if branch node and collapsed: expand node, if branch node and expanded: move to first child
 - shift + H, shift + ← - move to next parent
 - shift + l, shift + → - move to next child - if current node is collapsed it will be expanded
@@ -28,13 +28,15 @@
 - space, enter - toggle collapse state of current node
 - c - collapse current node and all its siblings
 - e - expand current node and all its siblings
-- shift + c - collapse recursively current node if collapsable
-- shift + e - expand recursively current node if expandable
+- shift + c - collapse current node recursively
+- shift + e - expand current node recursively
 
 - g, home - go to first node (root)
 - shift + g, end - go to last visible node
-- ctrl + u - half screen up in visible tree structure
-- ctrl + d - half screen down in visible tree structure
+- ctrl + u - half screen up
+- ctrl + d - half screen down
+- ctrl + f, page-down - one screen down
+- ctrl + b, page-up - one screen up
 
 ### Commandline
 
