@@ -18,8 +18,10 @@
 - k, ↑ - move up in visible tree structure over all hierarchiy levels
 - shift + j, shift + ↓ - move down all nodes in current hierarchy level - skips other hierarchy levels
 - shift + k, shift + ↑ - move up all nodes in current hierarchy level - skips other hierarchy levels
-- h, ← - move to next parent
-- l, → - move to next child - if current node is collapsed it will be expanded
+- h, ← - if leaf or collapsed: move to parent, if branch node and collapsed: move to parent if possible
+- l, → - if branch node and collapsed: expand node, if branch node and expanded: move to first child
+- shift + H, shift + ← - move to next parent
+- shift + l, shift + → - move to next child - if current node is collapsed it will be expanded
 - 0, ^ - move to first sibling in current hierachy level
 - $ - move to last sibling in current hierachy level
 

@@ -110,6 +110,18 @@ func collectSiblings(tree *tview.TreeView, refNode *tview.TreeNode) []*tview.Tre
 	return foundNodes
 }
 
+func getParent(tree *tview.TreeView, refNode *tview.TreeNode) *tview.TreeNode {
+	var foundNode *tview.TreeNode
+	tree.GetRoot().Walk(func(node, parent *tview.TreeNode) bool {
+		if node == refNode {
+			foundNode = parent
+			return false
+		}
+		return true
+	})
+	return foundNode
+}
+
 func expandCurrentAndAllSiblings(tree *tview.TreeView) {
 	siblings := collectSiblings(tree, tree.GetCurrentNode())
 	for _, sibling := range siblings {
@@ -124,11 +136,36 @@ func collapseCurrentAndAllSiblings(tree *tview.TreeView) {
 	}
 }
 
+func expandOrMoveToFirstChild(tree *tview.TreeView) {
+	currentNode := tree.GetCurrentNode()
+	if !currentNode.IsExpanded() {
+		currentNode.Expand()
+	} else if len(currentNode.GetChildren()) > 0 {
+		tree.SetCurrentNode(currentNode.GetChildren()[0])
+	}
+}
+
+func collapseOrMoveToParent(tree *tview.TreeView) {
+	currentNode := tree.GetCurrentNode()
+	if currentNode.IsExpanded() {
+		currentNode.Collapse()
+	} else {
+		moveToParent(tree)
+	}
+}
+
 func moveToFirstChild(tree *tview.TreeView) {
 	currentNode := tree.GetCurrentNode()
 	if len(currentNode.GetChildren()) > 0 {
 		currentNode.SetExpanded(true)
 		tree.SetCurrentNode(currentNode.GetChildren()[0])
+	}
+}
+
+func moveToParent(tree *tview.TreeView) {
+	parent := getParent(tree, tree.GetCurrentNode())
+	if parent != nil {
+		tree.SetCurrentNode(parent)
 	}
 }
 

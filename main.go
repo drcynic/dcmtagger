@@ -196,6 +196,18 @@ func main() {
 		case tcell.KeyCtrlU:
 			_, _, _, height := tree.GetInnerRect()
 			tree.Move(-height / 2)
+		case tcell.KeyLeft:
+			if event.Modifiers() == tcell.ModShift {
+				moveToParent(tree)
+			} else {
+				collapseOrMoveToParent(tree)
+			}
+		case tcell.KeyRight:
+			if event.Modifiers() == tcell.ModShift {
+				moveToFirstChild(tree)
+			} else {
+				expandOrMoveToFirstChild(tree)
+			}
 		case tcell.KeyUp:
 			if event.Modifiers() == tcell.ModShift {
 				moveUpSameLevel(tree)
@@ -221,8 +233,12 @@ func main() {
 			case 'K':
 				moveUpSameLevel(tree)
 			case 'h':
-				return tcell.NewEventKey(tcell.KeyRune, 'K', tcell.ModNone)
+				collapseOrMoveToParent(tree)
 			case 'l':
+				expandOrMoveToFirstChild(tree)
+			case 'H':
+				moveToParent(tree)
+			case 'L':
 				moveToFirstChild(tree)
 			case '0', '^':
 				moveToFirstSibling(tree)
