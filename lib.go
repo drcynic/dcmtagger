@@ -138,16 +138,18 @@ func collapseCurrentAndAllSiblings(tree *tview.TreeView) {
 
 func expandOrMoveToFirstChild(tree *tview.TreeView) {
 	currentNode := tree.GetCurrentNode()
-	if !currentNode.IsExpanded() {
-		currentNode.Expand()
-	} else if len(currentNode.GetChildren()) > 0 {
-		tree.SetCurrentNode(currentNode.GetChildren()[0])
+	if len(currentNode.GetChildren()) > 0 {
+		if currentNode.IsExpanded() {
+			tree.SetCurrentNode(currentNode.GetChildren()[0])
+		} else {
+			currentNode.Expand()
+		}
 	}
 }
 
 func collapseOrMoveToParent(tree *tview.TreeView) {
 	currentNode := tree.GetCurrentNode()
-	if currentNode.IsExpanded() {
+	if len(currentNode.GetChildren()) > 0 && currentNode.IsExpanded() {
 		currentNode.Collapse()
 	} else {
 		moveToParent(tree)
