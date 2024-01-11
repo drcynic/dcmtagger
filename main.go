@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/alexflint/go-arg"
@@ -65,6 +66,8 @@ func main() {
 
 	rootDir := args.Input
 
+	pages := tview.NewPages()
+
 	tagDescriptionViews := tagDescView()
 	statusLine := tview.NewTextView()
 
@@ -97,6 +100,21 @@ func main() {
 			case ':':
 				app.SetFocus(cmdline)
 				cmdline.SetText(":")
+				return nil
+			case '?':
+				viewName := "help"
+				fileContent, _ := os.ReadFile("README.md")
+				helpView := tview.NewTextView().SetText(string(fileContent))
+				helpView.
+					SetTitle("help").
+					SetTitleAlign(tview.AlignLeft).
+					SetBorder(true)
+				width, height := 120, 40
+				grid := tview.NewGrid().
+					SetColumns(0, width, 0).
+					SetRows(0, height, 0).
+					AddItem(helpView, 1, 1, 1, 1, 0, 0, true)
+				pages.AddAndSwitchToPage(viewName, grid, true).ShowPage("main")
 				return nil
 			}
 		}
@@ -270,7 +288,9 @@ func main() {
 		return nil
 	})
 
-	if err := app.SetRoot(mainGrid, true).Run(); err != nil {
+	pages.AddPage("main", mainGrid, true, true)
+
+	if err := app.SetRoot(pages, true).Run(); err != nil {
 		panic(err)
 	}
 }
