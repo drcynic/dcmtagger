@@ -4,10 +4,41 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"github.com/suyashkumar/dicom"
 	"github.com/suyashkumar/dicom/pkg/tag"
 )
+
+func addAndShowHelpPage(pages *tview.Pages) {
+	viewName := "help"
+	fileContent, _ := os.ReadFile("README.md")
+	helpView := tview.NewTextView().SetText(string(fileContent))
+	helpView.
+		SetTitle("Help").
+		SetTitleAlign(tview.AlignLeft).
+		SetBorder(true)
+	helpView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+		case tcell.KeyEsc:
+			pages.RemovePage(viewName)
+			return nil
+		case tcell.KeyRune:
+			switch event.Rune() {
+			case 'q':
+				pages.RemovePage(viewName)
+				return nil
+			}
+		}
+		return event
+	})
+	width, height := 120, 40
+	grid := tview.NewGrid().
+		SetColumns(0, width, 0).
+		SetRows(0, height, 0).
+		AddItem(helpView, 1, 1, 1, 1, 0, 0, true)
+	pages.AddAndSwitchToPage(viewName, grid, true).ShowPage("main")
+}
 
 func parseDicomFiles(path string) ([]DatasetEntry, error) {
 	datasetsWithFilename := make([]DatasetEntry, 0)

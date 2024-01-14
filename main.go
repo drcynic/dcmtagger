@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/alexflint/go-arg"
@@ -102,19 +101,7 @@ func main() {
 				cmdline.SetText(":")
 				return nil
 			case '?':
-				viewName := "help"
-				fileContent, _ := os.ReadFile("README.md")
-				helpView := tview.NewTextView().SetText(string(fileContent))
-				helpView.
-					SetTitle("help").
-					SetTitleAlign(tview.AlignLeft).
-					SetBorder(true)
-				width, height := 120, 40
-				grid := tview.NewGrid().
-					SetColumns(0, width, 0).
-					SetRows(0, height, 0).
-					AddItem(helpView, 1, 1, 1, 1, 0, 0, true)
-				pages.AddAndSwitchToPage(viewName, grid, true).ShowPage("main")
+				addAndShowHelpPage(pages)
 				return nil
 			}
 		}
