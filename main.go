@@ -80,18 +80,6 @@ func main() {
 		switch event.Key() {
 		case tcell.KeyRune:
 			switch event.Rune() {
-			case '1':
-				tree, root = sortTreeByFilename(rootDir, tree, datasetsByFilename[:])
-				collapseAllRecursive(root)
-				statusLine.SetText("Sort by filename")
-			case '2':
-				tree, root = sortTreeByTag(rootDir, tree, datasetsByFilename[:])
-				collapseAllLeaves(root)
-				statusLine.SetText("Sort by tag")
-			case '3':
-				tree, root = sortTreeByTagUnique(rootDir, tree, datasetsByFilename[:])
-				collapseAllLeaves(root)
-				statusLine.SetText("Sort by tag, show only different tag values")
 			case '/':
 				app.SetFocus(cmdline)
 				cmdline.SetText("/")
@@ -231,6 +219,18 @@ func main() {
 			jumpToLastVisibleNode(tree)
 		case tcell.KeyRune:
 			switch event.Rune() {
+			case '1':
+				tree, root = sortTreeByFilename(rootDir, tree, datasetsByFilename[:])
+				collapseAllRecursive(root)
+				statusLine.SetText("Sort by filename")
+			case '2':
+				tree, root = sortTreeByTag(rootDir, tree, datasetsByFilename[:])
+				collapseAllLeaves(root)
+				statusLine.SetText("Sort by tag")
+			case '3':
+				tree, root = sortTreeByTagUnique(rootDir, tree, datasetsByFilename[:])
+				collapseAllLeaves(root)
+				statusLine.SetText("Sort by tag, show only different tag values")
 			case 'q':
 				app.Stop()
 			case 'J':
