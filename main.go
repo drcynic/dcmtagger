@@ -91,7 +91,7 @@ func main() {
 			case '3':
 				tree, root = sortTreeByTagUnique(rootDir, tree, datasetsByFilename[:])
 				collapseAllLeaves(root)
-				statusLine.SetText("Sort by tag, show only differnt tag values")
+				statusLine.SetText("Sort by tag, show only different tag values")
 			case '/':
 				app.SetFocus(cmdline)
 				cmdline.SetText("/")

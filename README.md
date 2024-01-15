@@ -11,6 +11,7 @@
 - 3 - sort tree by tags and show only the tags which contains different tag values per file
 - / - enter command line with search
 - : - enter command line with command
+- ? - help view
 
 ### Treeview
 
