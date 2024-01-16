@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -74,6 +75,30 @@ func parseDicomFiles(path string) ([]DatasetEntry, error) {
 	}
 
 	return datasetsWithFilename, err
+}
+
+func findNodeRecursive(tree *tview.TreeView, searchText string) ([]*tview.TreeNode, int) {
+	findPred := func(node *tview.TreeNode) bool {
+		return strings.Contains(strings.ToLower(node.GetText()), searchText)
+	}
+
+	foundNodes := make([]*tview.TreeNode, 0)
+	foundIndex := -1
+	tree.GetRoot().Walk(func(node, parent *tview.TreeNode) bool {
+		if findPred(node) {
+			foundNodes = append(foundNodes, node)
+		}
+		if tree.GetCurrentNode() == node {
+			if len(foundNodes) > 0 {
+				foundIndex = len(foundNodes) - 1
+			} else {
+				foundIndex = 0
+			}
+		}
+		return true
+	})
+
+	return foundNodes, foundIndex
 }
 
 func collapseAllChildren(node *tview.TreeNode) {

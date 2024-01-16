@@ -32,21 +32,6 @@ type DatasetEntry struct {
 	dataset  dicom.Dataset
 }
 
-func findNodeRecursive(node *tview.TreeNode, searchText string) *tview.TreeNode {
-	if strings.Contains(strings.ToLower(node.GetText()), searchText) {
-		return node
-	}
-
-	for _, child := range node.GetChildren() {
-		foundNode := findNodeRecursive(child, searchText)
-		if foundNode != nil {
-			return foundNode
-		}
-	}
-
-	return nil
-}
-
 func main() {
 	var args args
 	p := arg.MustParse(&args)
@@ -64,6 +49,8 @@ func main() {
 	app := tview.NewApplication()
 
 	rootDir := args.Input
+
+	searchText := ""
 
 	pages := tview.NewPages()
 
@@ -125,15 +112,15 @@ func main() {
 	})
 
 	cmdline.SetChangedFunc(func(text string) {
-		cmdlineText := text // cmdline.GetText()
+		cmdlineText := text
 		if strings.HasPrefix(cmdlineText, "/") && len(cmdlineText) > 1 {
-			searchText := cmdlineText[1:]
-			statusLine.SetText(searchText)
-			searchText = strings.ToLower(searchText)
-			foundNode := findNodeRecursive(root, searchText)
-			if foundNode != nil {
+			searchText = strings.ToLower(cmdlineText[1:])
+			foundNodes, currentIdx := findNodeRecursive(tree, searchText)
+			if len(foundNodes) > 0 {
 				root.ExpandAll() // todo: only expand way to node
-				tree.SetCurrentNode(foundNode)
+				newNode := foundNodes[currentIdx%len(foundNodes)]
+				tree.SetCurrentNode(newNode)
+				statusLine.SetText(newNode.GetText())
 			}
 		}
 	})
