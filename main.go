@@ -111,33 +111,6 @@ func main() {
 		return event
 	})
 
-	cmdline.SetChangedFunc(func(text string) {
-		cmdlineText := text
-		if strings.HasPrefix(cmdlineText, "/") && len(cmdlineText) > 1 {
-			searchText = strings.ToLower(cmdlineText[1:])
-			foundNodes, currentIdx := findNodeRecursive(tree, searchText)
-			if len(foundNodes) > 0 {
-				newNode := foundNodes[currentIdx%len(foundNodes)]
-				tree.SetCurrentNode(newNode)
-				expandPathToNode(tree, newNode)
-				statusLine.SetText(newNode.GetText())
-			}
-		}
-	})
-
-	mainGrid := tview.NewGrid().
-		SetRows(-1, 1, 1).
-		SetColumns(-1, -2).
-		SetBorders(true).
-		AddItem(tree, 0, 0, 1, 1, 0, 0, true).
-		AddItem(tagDescriptionViews.grid, 0, 1, 1, 1, 0, 0, false).
-		AddItem(statusLine, 1, 0, 1, 2, 0, 0, false).
-		AddItem(cmdline, 2, 0, 1, 2, 0, 0, false)
-
-	tree.SetSelectedFunc(func(node *tview.TreeNode) {
-		node.SetExpanded(!node.IsExpanded())
-	})
-
 	changedHandler := func(node *tview.TreeNode) {
 		if len(node.GetChildren()) > 0 || node.GetReference() == nil {
 			tagDescriptionViews.tagNameView.SetText("")
@@ -164,6 +137,36 @@ func main() {
 	}
 
 	tree.SetChangedFunc(changedHandler)
+
+	cmdline.SetChangedFunc(func(text string) {
+		cmdlineText := text
+		if strings.HasPrefix(cmdlineText, "/") && len(cmdlineText) > 1 {
+			searchText = strings.ToLower(cmdlineText[1:])
+			foundNodes, currentIdx := findNodeRecursive(tree, searchText)
+			if len(foundNodes) > 0 {
+				newNode := foundNodes[currentIdx%len(foundNodes)]
+				if newNode != tree.GetCurrentNode() {
+					tree.SetCurrentNode(newNode)
+					expandPathToNode(tree, newNode)
+					statusLine.SetText(newNode.GetText())
+					changedHandler(newNode)
+				}
+			}
+		}
+	})
+
+	mainGrid := tview.NewGrid().
+		SetRows(-1, 1, 1).
+		SetColumns(-1, -2).
+		SetBorders(true).
+		AddItem(tree, 0, 0, 1, 1, 0, 0, true).
+		AddItem(tagDescriptionViews.grid, 0, 1, 1, 1, 0, 0, false).
+		AddItem(statusLine, 1, 0, 1, 2, 0, 0, false).
+		AddItem(cmdline, 2, 0, 1, 2, 0, 0, false)
+
+	tree.SetSelectedFunc(func(node *tview.TreeNode) {
+		node.SetExpanded(!node.IsExpanded())
+	})
 
 	// key handlings
 	tree.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
