@@ -61,7 +61,7 @@ func main() {
 	tree, root := sortTreeByFilename(rootDir, tree, datasetsByFilename[:])
 	collapseAllRecursive(root)
 	statusLine.SetText("Sort by filename")
-	cmdline := tview.NewInputField()
+	cmdline := tview.NewInputField().SetFieldBackgroundColor(tcell.ColorBlack)
 
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
