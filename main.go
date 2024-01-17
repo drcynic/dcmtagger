@@ -251,6 +251,34 @@ func main() {
 				jumpToRoot(tree)
 			case 'G':
 				jumpToLastVisibleNode(tree)
+			case 'n':
+				if len(searchText) > 1 {
+					foundNodes, currentIdx := findNodeRecursive(tree, searchText)
+					if len(foundNodes) > 0 {
+						newNode := foundNodes[(currentIdx+1)%len(foundNodes)]
+						if newNode != tree.GetCurrentNode() {
+							tree.SetCurrentNode(newNode)
+							expandPathToNode(tree, newNode)
+							statusLine.SetText(newNode.GetText())
+							changedHandler(newNode)
+						}
+					}
+				}
+			case 'N':
+				if len(searchText) > 1 {
+					foundNodes, currentIdx := findNodeRecursive(tree, searchText)
+					if len(foundNodes) > 0 {
+						len := len(foundNodes)
+						newNode := foundNodes[(currentIdx+len-1)%len]
+						if newNode != tree.GetCurrentNode() {
+							tree.SetCurrentNode(newNode)
+							expandPathToNode(tree, newNode)
+							statusLine.SetText(newNode.GetText())
+							changedHandler(newNode)
+						}
+					}
+				}
+
 			default:
 				return event // not handled, pass on
 			}

@@ -39,5 +39,8 @@
 - ctrl + f, page-down - one screen down
 - ctrl + b, page-up - one screen up
 
+- n - search for next occurence if search text present
+- N - search for prev occurence if search text present
+
 ### Commandline
 
