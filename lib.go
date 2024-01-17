@@ -178,6 +178,21 @@ func getParent(tree *tview.TreeView, refNode *tview.TreeNode) *tview.TreeNode {
 	return foundNode
 }
 
+func expandPathToNode(tree *tview.TreeView, node *tview.TreeNode) {
+	if node == tree.GetRoot() {
+		node.Expand()
+		return
+	}
+
+	parent := getParent(tree, node)
+	if parent != nil {
+		expandPathToNode(tree, parent)
+	} else {
+		node.Expand()
+	}
+	node.Expand()
+}
+
 func expandCurrentAndAllSiblings(tree *tview.TreeView) {
 	siblings := collectSiblings(tree, tree.GetCurrentNode())
 	for _, sibling := range siblings {

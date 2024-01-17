@@ -117,9 +117,9 @@ func main() {
 			searchText = strings.ToLower(cmdlineText[1:])
 			foundNodes, currentIdx := findNodeRecursive(tree, searchText)
 			if len(foundNodes) > 0 {
-				root.ExpandAll() // todo: only expand way to node
 				newNode := foundNodes[currentIdx%len(foundNodes)]
 				tree.SetCurrentNode(newNode)
+				expandPathToNode(tree, newNode)
 				statusLine.SetText(newNode.GetText())
 			}
 		}
