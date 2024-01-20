@@ -142,16 +142,7 @@ func main() {
 		cmdlineText := text
 		if strings.HasPrefix(cmdlineText, "/") && len(cmdlineText) > 1 {
 			searchText = strings.ToLower(cmdlineText[1:])
-			foundNodes, currentIdx := findNodeRecursive(tree, searchText)
-			if len(foundNodes) > 0 {
-				newNode := foundNodes[currentIdx%len(foundNodes)]
-				if newNode != tree.GetCurrentNode() {
-					tree.SetCurrentNode(newNode)
-					expandPathToNode(tree, newNode)
-					statusLine.SetText(newNode.GetText())
-					changedHandler(newNode)
-				}
-			}
+			jumpToNthFoundNode(searchText, 0, tree)
 		}
 	})
 
