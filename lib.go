@@ -291,6 +291,28 @@ func jumpToLastVisibleNode(tree *tview.TreeView) {
 	tree.SetCurrentNode(nodes[len(nodes)-1])
 }
 
+func jumpToNextFoundNode(searchText string, tree *tview.TreeView) {
+	jumpToNthFoundNode(searchText, 1, tree)
+}
+
+func jumpToPrevFoundNode(searchText string, tree *tview.TreeView) {
+	jumpToNthFoundNode(searchText, -1, tree)
+}
+
+func jumpToNthFoundNode(searchText string, offset int, tree *tview.TreeView) {
+	if len(searchText) > 1 {
+		foundNodes, currentIdx := findNodeRecursive(tree, searchText)
+		len := len(foundNodes)
+		if len > 0 {
+			newNode := foundNodes[(currentIdx+len+offset)%len]
+			if newNode != tree.GetCurrentNode() {
+				tree.SetCurrentNode(newNode)
+				expandPathToNode(tree, newNode)
+			}
+		}
+	}
+}
+
 func sortTreeByFilename(rootDir string, tree *tview.TreeView, datasetsWithFilename []DatasetEntry) (*tview.TreeView, *tview.TreeNode) {
 	if tree.GetRoot() != nil {
 		tree.GetRoot().ClearChildren()
