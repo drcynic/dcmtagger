@@ -27,6 +27,14 @@ const (
 	CmdlineMode
 )
 
+type SortMode int
+
+const (
+	ByFilename SortMode = iota
+	ByTag
+	ByTagDiffsOnly
+)
+
 type DatasetEntry struct {
 	filename string
 	dataset  dicom.Dataset
@@ -45,12 +53,15 @@ func main() {
 		return
 	}
 
+	// global state
+	searchText := ""
+	sortMode := ByFilename
+	showTagValueSummaryList := false
+
 	// create tree nodes with dicom tags
 	app := tview.NewApplication()
 
 	rootDir := args.Input
-
-	searchText := ""
 
 	pages := tview.NewPages()
 
@@ -112,11 +123,35 @@ func main() {
 	})
 
 	changedHandler := func(node *tview.TreeNode) {
+		tagDescriptionViews.valueList.Clear()
 		if len(node.GetChildren()) > 0 || node.GetReference() == nil {
-			tagDescriptionViews.tagNameView.SetText("")
-			tagDescriptionViews.vrView.SetText("")
 			tagDescriptionViews.lengthView.SetText("")
 			tagDescriptionViews.valueView.SetText("")
+
+			if showTagValueSummaryList && sortMode != ByFilename && node.GetReference() != nil {
+				e := node.GetReference().(*dicom.Element)
+				var tagName string
+				if tagInfo, err := tag.Find(e.Tag); err == nil {
+					tagName = tagInfo.Name
+				}
+				tagDescriptionViews.tagNameView.SetText(tagName)
+				tagDescriptionViews.vrView.SetText(e.RawValueRepresentation)
+
+				entryNumber := 1
+				for _, child := range node.GetChildren() {
+					var value string
+					e := child.GetReference().(*dicom.Element)
+					if e.RawValueRepresentation != vrraw.Sequence && e.ValueLength < 150 {
+						value = e.Value.String()
+					}
+					entryText := fmt.Sprintf("%5d    length: %d    value: %s", entryNumber, e.ValueLength, value)
+					tagDescriptionViews.valueList.AddItem(entryText, "", 0, nil)
+					entryNumber++
+				}
+			} else {
+				tagDescriptionViews.tagNameView.SetText("")
+				tagDescriptionViews.vrView.SetText("")
+			}
 		} else {
 			e := node.GetReference().(*dicom.Element)
 			var tagName string
@@ -203,14 +238,17 @@ func main() {
 			case '1':
 				tree, root = sortTreeByFilename(rootDir, tree, datasetsByFilename[:])
 				collapseAllRecursive(root)
+				sortMode = ByFilename
 				statusLine.SetText("Sort by filename")
 			case '2':
 				tree, root = sortTreeByTag(rootDir, tree, datasetsByFilename[:])
 				collapseAllLeaves(root)
+				sortMode = ByTag
 				statusLine.SetText("Sort by tag")
 			case '3':
 				tree, root = sortTreeByTagUnique(rootDir, tree, datasetsByFilename[:])
 				collapseAllLeaves(root)
+				sortMode = ByTagDiffsOnly
 				statusLine.SetText("Sort by tag, show only different tag values")
 			case 'q':
 				app.Stop()
@@ -246,6 +284,9 @@ func main() {
 				jumpToNextFoundNode(searchText, tree)
 			case 'N':
 				jumpToPrevFoundNode(searchText, tree)
+			case 'v':
+				showTagValueSummaryList = !showTagValueSummaryList
+				changedHandler(tree.GetCurrentNode())
 
 			default:
 				return event // not handled, pass on
@@ -271,6 +312,7 @@ func main() {
 type tagDescViews struct {
 	grid                                       *tview.Grid
 	tagNameView, vrView, lengthView, valueView *tview.TextView
+	valueList                                  *tview.List
 }
 
 func tagDescView() *tagDescViews {
@@ -298,5 +340,8 @@ func tagDescView() *tagDescViews {
 	grid.AddItem(valueLabel, 3, 0, 1, 1, 0, 0, false)
 	grid.AddItem(value, 3, 1, 1, 1, 0, 0, false)
 
-	return &tagDescViews{grid, header, vr, length, value}
+	valueList := tview.NewList().ShowSecondaryText(false)
+	grid.AddItem(valueList, 4, 0, 2, 2, 0, 0, false)
+
+	return &tagDescViews{grid, header, vr, length, value, valueList}
 }
