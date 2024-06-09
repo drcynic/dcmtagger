@@ -56,7 +56,7 @@ func main() {
 	// global state
 	searchText := ""
 	sortMode := ByFilename
-	showTagValueSummaryList := false
+	showTagValueSummaryList := true
 
 	// create tree nodes with dicom tags
 	app := tview.NewApplication()
@@ -65,7 +65,8 @@ func main() {
 
 	pages := tview.NewPages()
 
-	tagDescriptionViews := tagDescView()
+	singleTagDescViews := singleTagDescView()
+	multipleTagsDescViews := multipleTagsDescView()
 	statusLine := tview.NewTextView()
 
 	tree := tview.NewTreeView()
@@ -122,11 +123,20 @@ func main() {
 		return event
 	})
 
+	mainGrid := tview.NewGrid().
+		SetRows(-1, 1, 1).
+		SetColumns(-1, -2).
+		SetBorders(true).
+		AddItem(tree, 0, 0, 1, 1, 0, 0, true).
+		AddItem(multipleTagsDescViews.grid, 0, 1, 1, 1, 0, 0, false).
+		AddItem(statusLine, 1, 0, 1, 2, 0, 0, false).
+		AddItem(cmdline, 2, 0, 1, 2, 0, 0, false)
+
 	changedHandler := func(node *tview.TreeNode) {
-		tagDescriptionViews.valueList.Clear()
 		if len(node.GetChildren()) > 0 || node.GetReference() == nil {
-			tagDescriptionViews.lengthView.SetText("")
-			tagDescriptionViews.valueView.SetText("")
+			mainGrid.RemoveItem(singleTagDescViews.grid)
+			mainGrid.AddItem(multipleTagsDescViews.grid, 0, 1, 1, 1, 0, 0, false)
+			multipleTagsDescViews.valueList.Clear()
 
 			if showTagValueSummaryList && sortMode != ByFilename && node.GetReference() != nil {
 				e := node.GetReference().(*dicom.Element)
@@ -134,8 +144,9 @@ func main() {
 				if tagInfo, err := tag.Find(e.Tag); err == nil {
 					tagName = tagInfo.Name
 				}
-				tagDescriptionViews.tagNameView.SetText(tagName)
-				tagDescriptionViews.vrView.SetText(e.RawValueRepresentation)
+				multipleTagsDescViews.tagNameView.SetText(tagName)
+				multipleTagsDescViews.vrLabel.SetText("VR: ")
+				multipleTagsDescViews.vrView.SetText(e.RawValueRepresentation)
 
 				entryNumber := 1
 				for _, child := range node.GetChildren() {
@@ -145,28 +156,32 @@ func main() {
 						value = e.Value.String()
 					}
 					entryText := fmt.Sprintf("%5d    length: %d    value: %s", entryNumber, e.ValueLength, value)
-					tagDescriptionViews.valueList.AddItem(entryText, "", 0, nil)
+					multipleTagsDescViews.valueList.AddItem(entryText, "", 0, nil)
 					entryNumber++
 				}
 			} else {
-				tagDescriptionViews.tagNameView.SetText("")
-				tagDescriptionViews.vrView.SetText("")
+				multipleTagsDescViews.tagNameView.SetText("")
+				multipleTagsDescViews.vrLabel.SetText("")
+				multipleTagsDescViews.vrView.SetText("")
 			}
 		} else {
+			mainGrid.RemoveItem(multipleTagsDescViews.grid)
+			mainGrid.AddItem(singleTagDescViews.grid, 0, 1, 1, 1, 0, 0, false)
+
 			e := node.GetReference().(*dicom.Element)
 			var tagName string
 			if tagInfo, err := tag.Find(e.Tag); err == nil {
 				tagName = tagInfo.Name
 			}
-			tagDescriptionViews.tagNameView.SetText(tagName)
-			tagDescriptionViews.vrView.SetText(e.RawValueRepresentation)
-			tagDescriptionViews.lengthView.SetText(fmt.Sprint(e.ValueLength))
+			singleTagDescViews.tagNameView.SetText(tagName)
+			singleTagDescViews.vrView.SetText(e.RawValueRepresentation)
+			singleTagDescViews.lengthView.SetText(fmt.Sprint(e.ValueLength))
 
 			var value string
 			if e.RawValueRepresentation != vrraw.Sequence && e.ValueLength < 150 {
 				value = e.Value.String()
 			}
-			tagDescriptionViews.valueView.SetText(value)
+			singleTagDescViews.valueView.SetText(value)
 			// elementText := fmt.Sprintf("\t%04x %s (%s): %s", e.Tag.Element, tagName, e.RawValueRepresentation, value)
 		}
 	}
@@ -180,15 +195,6 @@ func main() {
 			jumpToNthFoundNode(searchText, 0, tree)
 		}
 	})
-
-	mainGrid := tview.NewGrid().
-		SetRows(-1, 1, 1).
-		SetColumns(-1, -2).
-		SetBorders(true).
-		AddItem(tree, 0, 0, 1, 1, 0, 0, true).
-		AddItem(tagDescriptionViews.grid, 0, 1, 1, 1, 0, 0, false).
-		AddItem(statusLine, 1, 0, 1, 2, 0, 0, false).
-		AddItem(cmdline, 2, 0, 1, 2, 0, 0, false)
 
 	tree.SetSelectedFunc(func(node *tview.TreeNode) {
 		node.SetExpanded(!node.IsExpanded())
@@ -246,7 +252,7 @@ func main() {
 				sortMode = ByTag
 				statusLine.SetText("Sort by tag")
 			case '3':
-				tree, root = sortTreeByTagUnique(rootDir, tree, datasetsByFilename[:])
+				tree, root = sortTreeByUniqueTags(rootDir, tree, datasetsByFilename[:])
 				collapseAllLeaves(root)
 				sortMode = ByTagDiffsOnly
 				statusLine.SetText("Sort by tag, show only different tag values")
@@ -309,25 +315,25 @@ func main() {
 	}
 }
 
-type tagDescViews struct {
+type singleTagDescViews struct {
 	grid                                       *tview.Grid
 	tagNameView, vrView, lengthView, valueView *tview.TextView
 	valueList                                  *tview.List
 }
 
-func tagDescView() *tagDescViews {
+func singleTagDescView() *singleTagDescViews {
 	grid := tview.NewGrid().SetRows(2, 1, 1, 1, -1).SetColumns(-1, -4)
 
-	header := tview.NewTextView().SetTextAlign(tview.AlignCenter).SetText("<tag name here>")
+	header := tview.NewTextView().SetTextAlign(tview.AlignCenter)
 
 	vrLabel := tview.NewTextView().SetTextAlign(tview.AlignRight).SetText("VR: ")
-	vr := tview.NewTextView().SetTextAlign(tview.AlignLeft).SetText("PN")
+	vr := tview.NewTextView().SetTextAlign(tview.AlignLeft)
 
 	lengthLabel := tview.NewTextView().SetTextAlign(tview.AlignRight).SetText("Length: ")
-	length := tview.NewTextView().SetTextAlign(tview.AlignLeft).SetText("123")
+	length := tview.NewTextView().SetTextAlign(tview.AlignLeft)
 
 	valueLabel := tview.NewTextView().SetTextAlign(tview.AlignRight).SetText("Value: ")
-	value := tview.NewTextView().SetTextAlign(tview.AlignLeft).SetText("SOMATOM Definition")
+	value := tview.NewTextView().SetTextAlign(tview.AlignLeft)
 
 	grid.AddItem(header, 0, 0, 1, 2, 0, 0, false)
 
@@ -343,5 +349,30 @@ func tagDescView() *tagDescViews {
 	valueList := tview.NewList().ShowSecondaryText(false)
 	grid.AddItem(valueList, 4, 0, 2, 2, 0, 0, false)
 
-	return &tagDescViews{grid, header, vr, length, value, valueList}
+	return &singleTagDescViews{grid, header, vr, length, value, valueList}
+}
+
+type multipleTagsDescViews struct {
+	grid                         *tview.Grid
+	tagNameView, vrLabel, vrView *tview.TextView
+	valueList                    *tview.List
+}
+
+func multipleTagsDescView() *multipleTagsDescViews {
+	grid := tview.NewGrid().SetRows(2, 2, -1).SetColumns(-1, -4)
+
+	header := tview.NewTextView().SetTextAlign(tview.AlignCenter)
+
+	vrLabel := tview.NewTextView().SetTextAlign(tview.AlignRight)
+	vr := tview.NewTextView().SetTextAlign(tview.AlignLeft)
+
+	grid.AddItem(header, 0, 0, 1, 2, 0, 0, false)
+
+	grid.AddItem(vrLabel, 1, 0, 1, 1, 0, 0, false)
+	grid.AddItem(vr, 1, 1, 1, 1, 0, 0, false)
+
+	valueList := tview.NewList().ShowSecondaryText(false)
+	grid.AddItem(valueList, 2, 0, 2, 2, 0, 0, false)
+
+	return &multipleTagsDescViews{grid, header, vrLabel, vr, valueList}
 }

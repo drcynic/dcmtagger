@@ -395,7 +395,7 @@ func sortTreeByTag(rootDir string, tree *tview.TreeView, datasetsWithFilename []
 	return tree, root
 }
 
-func sortTreeByTagUnique(rootDir string, tree *tview.TreeView, datasetsWithFilename []DatasetEntry) (*tview.TreeView, *tview.TreeNode) {
+func sortTreeByUniqueTags(rootDir string, tree *tview.TreeView, datasetsWithFilename []DatasetEntry) (*tview.TreeView, *tview.TreeNode) {
 	if len(datasetsWithFilename) == 1 {
 		return sortTreeByFilename(rootDir, tree, datasetsWithFilename) // sortying by tag doesn't make sense for single file
 	}
