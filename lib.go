@@ -338,12 +338,9 @@ func sortTreeByFilename(rootDir string, tree *tview.TreeView, datasetsWithFilena
 				fileNode.AddChild(currentGroupNode)
 			}
 
-			var tagName string
-			if tagInfo, err := tag.Find(e.Tag); err == nil {
-				tagName = tagInfo.Name
-			}
-
-			elementText := fmt.Sprintf("\t%04x %s", e.Tag.Element, tagName)
+			tagName := getTagName(e)
+			value := getValueString(e)
+			elementText := fmt.Sprintf("\t%04x %s (%s, %d): %s", e.Tag.Element, tagName, e.RawValueRepresentation, e.ValueLength, value)
 			elementNode := tview.NewTreeNode(elementText).SetSelectable(true).SetReference(e)
 			currentGroupNode.AddChild(elementNode)
 		}
@@ -352,50 +349,7 @@ func sortTreeByFilename(rootDir string, tree *tview.TreeView, datasetsWithFilena
 	return tree, root
 }
 
-func sortTreeByTag(rootDir string, tree *tview.TreeView, datasetsWithFilename []DatasetEntry) (*tview.TreeView, *tview.TreeNode) {
-	if len(datasetsWithFilename) == 1 {
-		return sortTreeByFilename(rootDir, tree, datasetsWithFilename) // sortying by tag doesn't make sense for single file
-	}
-
-	if tree.GetRoot() != nil {
-		tree.GetRoot().ClearChildren()
-	}
-
-	root := tview.NewTreeNode(rootDir).SetSelectable(true)
-	tree.SetRoot(root).SetCurrentNode(root)
-	groupNodesByGroupTag := make(map[uint16]*tview.TreeNode)
-	tagNodesByTag := make(map[tag.Tag]*tview.TreeNode)
-	for _, entry := range datasetsWithFilename {
-		for _, e := range entry.dataset.Elements {
-			currentGroupNode, ok := groupNodesByGroupTag[e.Tag.Group]
-			if !ok {
-				// currentGroup = e.Tag.Group
-				groupTagText := fmt.Sprintf("%04x/", e.Tag.Group)
-				currentGroupNode = tview.NewTreeNode(groupTagText).SetSelectable(true)
-				root.AddChild(currentGroupNode)
-				groupNodesByGroupTag[e.Tag.Group] = currentGroupNode
-			}
-
-			tagNode, ok := tagNodesByTag[e.Tag]
-			if !ok {
-				var tagName string
-				if tagInfo, err := tag.Find(e.Tag); err == nil {
-					tagName = tagInfo.Name
-				}
-				elementText := fmt.Sprintf("\t%04x %s/", e.Tag.Element, tagName)
-				tagNode = tview.NewTreeNode(elementText).SetSelectable(true).SetReference(e)
-				currentGroupNode.AddChild(tagNode)
-				tagNodesByTag[e.Tag] = tagNode
-			}
-
-			elementNode := tview.NewTreeNode(entry.filename).SetSelectable(true).SetReference(e)
-			tagNode.AddChild(elementNode)
-		}
-	}
-	return tree, root
-}
-
-func sortTreeByUniqueTags(rootDir string, tree *tview.TreeView, datasetsWithFilename []DatasetEntry) (*tview.TreeView, *tview.TreeNode) {
+func sortTreeByTags(rootDir string, tree *tview.TreeView, datasetsWithFilename []DatasetEntry, minDiffValuesPerTag int) (*tview.TreeView, *tview.TreeNode) {
 	if len(datasetsWithFilename) == 1 {
 		return sortTreeByFilename(rootDir, tree, datasetsWithFilename) // sortying by tag doesn't make sense for single file
 	}
@@ -407,7 +361,9 @@ func sortTreeByUniqueTags(rootDir string, tree *tview.TreeView, datasetsWithFile
 	root := tview.NewTreeNode(rootDir).SetSelectable(true)
 	tree.SetRoot(root).SetCurrentNode(root)
 
+	// todo: this is always the same, calculate at startup and store
 	valuesByTag := make(map[tag.Tag]map[string]bool)
+	valueLengthsByTag := make(map[tag.Tag]map[uint32]bool)
 	for _, entry := range datasetsWithFilename {
 		for _, e := range entry.dataset.Elements {
 			_, ok := valuesByTag[e.Tag]
@@ -415,6 +371,12 @@ func sortTreeByUniqueTags(rootDir string, tree *tview.TreeView, datasetsWithFile
 				valuesByTag[e.Tag] = make(map[string]bool)
 			}
 			valuesByTag[e.Tag][e.Value.String()] = true
+
+			_, ok = valueLengthsByTag[e.Tag]
+			if !ok {
+				valueLengthsByTag[e.Tag] = make(map[uint32]bool)
+			}
+			valueLengthsByTag[e.Tag][e.ValueLength] = true
 		}
 	}
 
@@ -432,24 +394,54 @@ func sortTreeByUniqueTags(rootDir string, tree *tview.TreeView, datasetsWithFile
 			}
 
 			valuesForTag := valuesByTag[e.Tag]
-			if len(valuesForTag) > 1 {
+			if len(valuesForTag) > minDiffValuesPerTag {
 				// fmt.Printf("multiple values for tag %v\n", e.Tag)
+
 				tagNode, ok := tagNodesByTag[e.Tag]
 				if !ok {
-					var tagName string
-					if tagInfo, err := tag.Find(e.Tag); err == nil {
-						tagName = tagInfo.Name
+					tagName := getTagName(e)
+					valueLengthsByTag := valueLengthsByTag[e.Tag]
+					valueLengthText := ""
+					if len(valueLengthsByTag) == 1 {
+						valueLengthText = fmt.Sprintf(", %d", e.ValueLength)
 					}
-					elementText := fmt.Sprintf("\t%04x %s/", e.Tag.Element, tagName)
+					// elementText := fmt.Sprintf("\t%04x %s/", e.Tag.Element, tagName)
+					elementText := fmt.Sprintf("\t%04x %s (%s%s)/", e.Tag.Element, tagName, e.RawValueRepresentation, valueLengthText)
 					tagNode = tview.NewTreeNode(elementText).SetSelectable(true).SetReference(e)
 					currentGroupNode.AddChild(tagNode)
 					tagNodesByTag[e.Tag] = tagNode
 				}
 
-				elementNode := tview.NewTreeNode(entry.filename).SetSelectable(true).SetReference(e)
+				value := getValueString(e)
+				elementText := fmt.Sprintf("\t %s (%d)\t - %s", value, e.ValueLength, entry.filename)
+				elementNode := tview.NewTreeNode(elementText).SetSelectable(true).SetReference(e)
 				tagNode.AddChild(elementNode)
 			}
 		}
 	}
 	return tree, root
+}
+
+func getTagName(e *dicom.Element) string {
+	var tagName string
+	if tagInfo, err := tag.Find(e.Tag); err == nil {
+		tagName = tagInfo.Name
+	}
+	return tagName
+}
+
+func getValueString(e *dicom.Element) string {
+	value := e.Value.String()
+	if e.Value.ValueType() == dicom.Strings {
+		valueList := e.Value.GetValue().([]string)
+		if len(valueList) == 1 {
+			value = valueList[0]
+		}
+	}
+	const maxLength = 50
+	if len(value) > maxLength {
+		value = value[:maxLength-4] + "...]"
+	}
+
+	return value
 }
