@@ -1,5 +1,3 @@
-testdata2/
-
-
-dcmview
+.DS_Store
 dcmtagger
+testdata2/
