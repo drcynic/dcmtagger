@@ -1,6 +1,6 @@
 module github.com/drcynic/dcmtagger
 
-go 1.18
+go 1.22
 
 require (
 	github.com/alexflint/go-arg v1.4.3
