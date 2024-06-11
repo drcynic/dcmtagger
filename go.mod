@@ -1,4 +1,4 @@
-module github.com/drcynic/dcmview
+module github.com/drcynic/dcmtagger
 
 go 1.18
 
