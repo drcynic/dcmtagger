@@ -123,6 +123,31 @@ func parseDicomFiles(path string) ([]DatasetEntry, error) {
 	return datasetsWithFilename, err
 }
 
+func writeDatasetToFile(datasetEntry DatasetEntry) error {
+	file, err := os.Create("write_test.dcm")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	var opts []dicom.WriteOption
+	if err = dicom.Write(file, datasetEntry.dataset, opts...); err != nil {
+		return err
+	}
+	return nil
+}
+
+func isTagNode(node *tview.TreeNode) bool {
+	return node.GetReference() != nil
+}
+
+func updateTagValue(node *tview.TreeNode, newValue string) {
+	if isTagNode(node) {
+		e := node.GetReference().(*dicom.Element)
+		stringArray := []string{newValue}
+		e.Value, _ = dicom.NewValue(stringArray)
+	}
+}
+
 func findNodeRecursive(tree *tview.TreeView, searchText string) ([]*tview.TreeNode, int) {
 	findPred := func(node *tview.TreeNode) bool {
 		return strings.Contains(strings.ToLower(node.GetText()), searchText)

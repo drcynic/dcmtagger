@@ -31,7 +31,7 @@ func main() {
 		p.Fail("Missing DICOM input file or directory")
 	}
 
-	datasetsByFilename, err := parseDicomFiles(args.Input)
+	datasetsWithFilename, err := parseDicomFiles(args.Input)
 	if err != nil {
 		fmt.Printf("Error reading input: '%s'\n", err.Error())
 		return
@@ -50,10 +50,17 @@ func main() {
 	statusLine := tview.NewTextView()
 
 	tree := tview.NewTreeView()
-	tree, root := sortTreeByFilename(rootDir, tree, datasetsByFilename[:])
+	tree, root := sortTreeByFilename(rootDir, tree, datasetsWithFilename[:])
 	collapseAllRecursive(root)
 	statusLine.SetText("Sort by filename")
 	cmdline := tview.NewInputField().SetFieldBackgroundColor(tcell.ColorBlack)
+	mainGrid := tview.NewGrid().
+		SetRows(-1, 1, 1).
+		SetColumns(-1).
+		SetBorders(true).
+		AddItem(tree, 0, 0, 1, 1, 0, 0, true).
+		AddItem(statusLine, 1, 0, 1, 1, 0, 0, false).
+		AddItem(cmdline, 2, 0, 1, 1, 0, 0, false)
 
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
@@ -87,6 +94,13 @@ func main() {
 				if cmdlineText == ":q" {
 					app.Stop()
 					return nil
+				} else if cmdlineText == ":w" {
+					if len(datasetsWithFilename) == 1 {
+						writeDatasetToFile(datasetsWithFilename[0])
+						statusLine.SetText("wrote")
+					}
+					cmdline.SetText("")
+					app.SetFocus(tree)
 				}
 				if cmdlineText == ":" {
 					cmdline.SetText("")
@@ -102,14 +116,6 @@ func main() {
 
 		return event
 	})
-
-	mainGrid := tview.NewGrid().
-		SetRows(-1, 1, 1).
-		SetColumns(-1).
-		SetBorders(true).
-		AddItem(tree, 0, 0, 1, 1, 0, 0, true).
-		AddItem(statusLine, 1, 0, 1, 1, 0, 0, false).
-		AddItem(cmdline, 2, 0, 1, 1, 0, 0, false)
 
 	cmdline.SetChangedFunc(func(text string) {
 		cmdlineText := text
@@ -128,6 +134,12 @@ func main() {
 		currentNode := tree.GetCurrentNode()
 
 		switch key := event.Key(); key {
+		case tcell.KeyCtrlSpace:
+			if isTagNode(currentNode) {
+				updateTagValue(currentNode, "entered")
+			} else {
+				return event
+			}
 		case tcell.KeyCtrlD:
 			_, _, _, height := tree.GetInnerRect()
 			tree.Move(height / 2)
@@ -165,15 +177,15 @@ func main() {
 		case tcell.KeyRune:
 			switch event.Rune() {
 			case '1':
-				tree, root = sortTreeByFilename(rootDir, tree, datasetsByFilename[:])
+				tree, root = sortTreeByFilename(rootDir, tree, datasetsWithFilename[:])
 				collapseAllRecursive(root)
 				statusLine.SetText("Sort by filename")
 			case '2':
-				tree, root = sortTreeByTags(rootDir, tree, datasetsByFilename[:], 0)
+				tree, root = sortTreeByTags(rootDir, tree, datasetsWithFilename[:], 0)
 				collapseAllLeaves(root)
 				statusLine.SetText("Sort by tag")
 			case '3':
-				tree, root = sortTreeByTags(rootDir, tree, datasetsByFilename[:], 1)
+				tree, root = sortTreeByTags(rootDir, tree, datasetsWithFilename[:], 1)
 				collapseAllLeaves(root)
 				statusLine.SetText("Sort by tag, show only different tag values")
 			case 'q':
