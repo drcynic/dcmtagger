@@ -7,7 +7,6 @@ import (
 	"github.com/alexflint/go-arg"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
-	"github.com/suyashkumar/dicom"
 )
 
 var version = "unknown"
@@ -24,11 +23,6 @@ const (
 	TreeMode EditMode = iota
 	CmdlineMode
 )
-
-type DatasetEntry struct {
-	filename string
-	dataset  dicom.Dataset
-}
 
 func main() {
 	var args args

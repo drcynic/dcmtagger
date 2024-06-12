@@ -11,6 +11,11 @@ import (
 	"github.com/suyashkumar/dicom/pkg/tag"
 )
 
+type DatasetEntry struct {
+	filename string
+	dataset  dicom.Dataset
+}
+
 var helpText = `Navigation
 
 Global
@@ -107,7 +112,6 @@ func parseDicomFiles(path string) ([]DatasetEntry, error) {
 			}
 			datasetsWithFilename = append(datasetsWithFilename, DatasetEntry{f.Name(), dataset})
 		}
-		// os.Exit(1)
 	} else {
 		dataset, err := dicom.ParseFile(path, nil)
 		if err != nil {
@@ -428,7 +432,6 @@ func sortTreeByTags(rootDir string, tree *tview.TreeView, datasetsWithFilename [
 		for _, e := range entry.dataset.Elements {
 			currentGroupNode, ok := groupNodesByGroupTag[e.Tag.Group]
 			if !ok {
-				// currentGroup = e.Tag.Group
 				groupTagText := fmt.Sprintf("%04x/", e.Tag.Group)
 				currentGroupNode = tview.NewTreeNode(groupTagText).SetSelectable(true)
 				root.AddChild(currentGroupNode)
@@ -437,8 +440,6 @@ func sortTreeByTags(rootDir string, tree *tview.TreeView, datasetsWithFilename [
 
 			valuesForTag := valuesByTag[e.Tag]
 			if len(valuesForTag) > minDiffValuesPerTag {
-				// fmt.Printf("multiple values for tag %v\n", e.Tag)
-
 				tagNode, ok := tagNodesByTag[e.Tag]
 				if !ok {
 					tagName := getTagName(e)
@@ -447,7 +448,6 @@ func sortTreeByTags(rootDir string, tree *tview.TreeView, datasetsWithFilename [
 					if len(valueLengthsByTag) == 1 {
 						valueLengthText = fmt.Sprintf(", %d", e.ValueLength)
 					}
-					// elementText := fmt.Sprintf("\t%04x %s/", e.Tag.Element, tagName)
 					elementText := fmt.Sprintf("\t%04x %s (%s%s)/", e.Tag.Element, tagName, e.RawValueRepresentation, valueLengthText)
 					tagNode = tview.NewTreeNode(elementText).SetSelectable(true).SetReference(e)
 					currentGroupNode.AddChild(tagNode)
