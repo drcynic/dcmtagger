@@ -63,7 +63,7 @@ func addAndShowHelpPage(pages *tview.Pages) {
 	helpView := tview.NewTextView().SetText(string(helpText))
 	helpView.
 		SetTitle("Help").
-		SetTitleAlign(tview.AlignLeft).
+		SetTitleAlign(tview.AlignCenter).
 		SetBorder(true).
 		SetBorderPadding(1, 1, 1, 1)
 	helpView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
@@ -86,6 +86,50 @@ func addAndShowHelpPage(pages *tview.Pages) {
 		SetRows(0, height, 0).
 		AddItem(helpView, 1, 1, 1, 1, 0, 0, true)
 	pages.AddAndSwitchToPage(viewName, grid, true).ShowPage("main")
+}
+
+func addAndShowTagEditingPage(pages *tview.Pages, element *dicom.Element) {
+	viewName := "TagEditView"
+
+	newValue := ""
+	form := tview.NewForm().
+		SetItemPadding(0).
+		SetFieldBackgroundColor(tcell.ColorDarkBlue).
+		SetButtonBackgroundColor(tcell.ColorDarkBlue).
+		AddTextView("Tag", fmt.Sprintf("%04x | %04x", element.Tag.Group, element.Tag.Element), 0, 1, false, false).
+		AddTextView("Name", getTagName(element), 0, 1, false, false).
+		AddTextView("VR", element.RawValueRepresentation, 0, 1, false, false).
+		AddTextView("Length", fmt.Sprint(element.ValueLength), 0, 1, false, false).
+		AddInputField("Value", getValueString(element), 0, nil, func(text string) {
+			newValue = text
+		}).
+		AddButton("Save", func() {
+			stringArray := []string{newValue}
+			element.Value, _ = dicom.NewValue(stringArray)
+			pages.RemovePage(viewName)
+		}).
+		AddButton("Cancel", func() {
+			pages.RemovePage(viewName)
+		})
+	form.SetBorder(true).
+		SetTitle("Edit Tag Value").
+		SetTitleAlign(tview.AlignCenter)
+	form.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+		case tcell.KeyEsc:
+			pages.RemovePage(viewName)
+			return nil
+		}
+		return event
+	})
+
+	modal := func(p tview.Primitive, width, height int) tview.Primitive {
+		return tview.NewGrid().
+			SetColumns(0, width, 0).
+			SetRows(0, height, 0).
+			AddItem(p, 1, 1, 1, 1, 0, 0, true)
+	}
+	pages.AddAndSwitchToPage(viewName, modal(form, 64, 11), true).ShowPage("main")
 }
 
 func parseDicomFiles(path string) ([]DatasetEntry, error) {
@@ -123,14 +167,13 @@ func parseDicomFiles(path string) ([]DatasetEntry, error) {
 	return datasetsWithFilename, err
 }
 
-func writeDatasetToFile(datasetEntry DatasetEntry) error {
-	file, err := os.Create("write_test.dcm")
+func writeDatasetToFile(dataset dicom.Dataset, filename string) error {
+	file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
-	var opts []dicom.WriteOption
-	if err = dicom.Write(file, datasetEntry.dataset, opts...); err != nil {
+	if err = dicom.Write(file, dataset); err != nil {
 		return err
 	}
 	return nil

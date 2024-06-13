@@ -7,6 +7,7 @@ import (
 	"github.com/alexflint/go-arg"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"github.com/suyashkumar/dicom"
 )
 
 var version = "unknown"
@@ -96,8 +97,8 @@ func main() {
 					return nil
 				} else if cmdlineText == ":w" {
 					if len(datasetsWithFilename) == 1 {
-						writeDatasetToFile(datasetsWithFilename[0])
-						statusLine.SetText("wrote")
+						writeDatasetToFile(datasetsWithFilename[0].dataset, "write_test_copy.dcm")
+						statusLine.SetText("saved to write_test_copy.dcm")
 					}
 					cmdline.SetText("")
 					app.SetFocus(tree)
@@ -136,7 +137,7 @@ func main() {
 		switch key := event.Key(); key {
 		case tcell.KeyCtrlSpace:
 			if isTagNode(currentNode) {
-				updateTagValue(currentNode, "entered")
+				addAndShowTagEditingPage(pages, currentNode.GetReference().(*dicom.Element))
 			} else {
 				return event
 			}
