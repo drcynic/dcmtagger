@@ -1,7 +1,8 @@
-use std::io;
+use std::{collections::HashMap, io};
 
 use clap::Parser;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use dicom_core::DataDictionary;
 use ratatui::{
     DefaultTerminal, Frame,
     buffer::Buffer,
@@ -22,7 +23,11 @@ struct Args {
 
 fn main() -> io::Result<()> {
     let args = Args::parse();
-    println!("args: {:?}", args);
+
+    let tags = get_grouped_tags(&args.input_file);
+    if let Ok(tags) = tags {
+        print_grouped_tags(&tags);
+    }
 
     let mut terminal = ratatui::init();
     let app_result = App::new(args.input_file).run(&mut terminal);
@@ -99,5 +104,52 @@ impl Widget for &App {
         let handler_text = Text::from(vec![Line::from(vec!["Value: ".into(), self.handler_text.clone().yellow()])]);
 
         Paragraph::new(handler_text).centered().block(block).render(area, buf);
+    }
+}
+
+pub type TagElement = dicom_core::DataElement<dicom_object::InMemDicomObject, Vec<u8>>;
+pub type GroupedTags = HashMap<u16, Vec<TagElement>>;
+
+pub fn get_grouped_tags(filename: &str) -> Result<GroupedTags, Box<dyn std::error::Error>> {
+    let mut grouped_tags: GroupedTags = HashMap::new();
+    let dicom_object = dicom_object::open_file(filename)?;
+    for elem in dicom_object {
+        let tag_entry = elem.header().tag;
+        if let Some(group_elements) = grouped_tags.get_mut(&tag_entry.group()) {
+            group_elements.push(elem);
+        } else {
+            grouped_tags.insert(tag_entry.group(), vec![elem]);
+        }
+    }
+
+    Ok(grouped_tags)
+}
+
+pub fn print_grouped_tags(grouped_tags: &GroupedTags) {
+    let dict = dicom_dictionary_std::StandardDataDictionary::default();
+
+    for (group, elements) in grouped_tags.iter() {
+        println!("{:#06x}", group);
+        for tag_elem in elements {
+            let tag = tag_elem.header().tag;
+            if let Some(tag_info) = dict.by_tag(tag) {
+                print!("\t{:#06x} '{}' ({}): ", tag.element(), tag_info.alias, tag_elem.vr());
+            } else {
+                print!("\t{:#06x} <unknown> ({}): ", tag.element(), tag_elem.vr());
+            }
+
+            // print out value
+            match tag_elem.value() {
+                dicom_core::DicomValue::Primitive(primitive_value) => {
+                    if tag_elem.vr() != dicom_core::VR::OB && tag_elem.vr() != dicom_core::VR::OW {
+                        println!("{}", primitive_value);
+                    } else {
+                        println!();
+                    }
+                }
+                dicom_core::DicomValue::Sequence(seq) => println!("sequence with {} items", seq.items().len()),
+                dicom_core::DicomValue::PixelSequence(_) => println!("pixel sequence here"),
+            }
+        }
     }
 }
