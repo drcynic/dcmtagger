@@ -239,7 +239,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "dcmtagger-rs"
+name = "dcmtagger"
 version = "0.1.0"
 dependencies = [
  "clap",
