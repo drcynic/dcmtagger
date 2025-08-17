@@ -1,5 +1,6 @@
 use std::io;
 
+use clap::Parser;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     DefaultTerminal, Frame,
@@ -11,7 +12,18 @@ use ratatui::{
     widgets::{Block, Paragraph, Widget},
 };
 
+#[derive(Clone, Debug, Parser)]
+#[clap(name = "DICOM Tagger v0.1.0")]
+#[clap(about = "Copyright (c) 2025 Daniel Szymanski")]
+struct Args {
+    #[clap(value_parser)]
+    input_file: String,
+}
+
 fn main() -> io::Result<()> {
+    let args = Args::parse();
+    println!("args: {:?}", args);
+
     let mut terminal = ratatui::init();
     let app_result = App::default().run(&mut terminal);
     ratatui::restore();
