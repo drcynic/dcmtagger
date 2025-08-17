@@ -39,9 +39,7 @@ impl App {
 
     fn handle_events(&mut self) -> io::Result<()> {
         match event::read()? {
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_key_event(key_event)
-            }
+            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => self.handle_key_event(key_event),
             _ => {}
         };
         Ok(())
@@ -78,14 +76,8 @@ impl Widget for &App {
             .title_bottom(instructions.centered())
             .border_set(border::PLAIN);
 
-        let handler_text = Text::from(vec![Line::from(vec![
-            "Value: ".into(),
-            self.handler_text.clone().yellow(),
-        ])]);
+        let handler_text = Text::from(vec![Line::from(vec!["Value: ".into(), self.handler_text.clone().yellow()])]);
 
-        Paragraph::new(handler_text)
-            .centered()
-            .block(block)
-            .render(area, buf);
+        Paragraph::new(handler_text).centered().block(block).render(area, buf);
     }
 }
