@@ -25,18 +25,26 @@ fn main() -> io::Result<()> {
     println!("args: {:?}", args);
 
     let mut terminal = ratatui::init();
-    let app_result = App::default().run(&mut terminal);
+    let app_result = App::new(args.input_file).run(&mut terminal);
     ratatui::restore();
     app_result
 }
 
 #[derive(Debug, Default)]
 pub struct App {
+    input_file: String,
     handler_text: String,
     exit: bool,
 }
 
 impl App {
+    pub fn new(input_file: String) -> Self {
+        App {
+            input_file,
+            ..Default::default()
+        }
+    }
+
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
@@ -81,7 +89,7 @@ impl App {
 
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let title = Line::from(" DICOM Tagger ".bold());
+        let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_file.clone().into(), " ".into()]);
         let instructions = Line::from(vec![" Quit ".into(), "<Q> ".blue().bold()]);
         let block = Block::bordered()
             .title(title.centered())
