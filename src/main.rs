@@ -13,7 +13,7 @@ use ratatui::{
 };
 
 #[derive(Clone, Debug, Parser)]
-#[clap(name = "DICOM Tagger v0.1.0")]
+#[clap(name = "DICOM Tagger", version = format!("v{}", env!("CARGO_PKG_VERSION")))]
 #[clap(about = "Copyright (c) 2025 Daniel Szymanski")]
 struct Args {
     #[clap(value_parser)]
