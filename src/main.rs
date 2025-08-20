@@ -21,33 +21,37 @@ struct Args {
     input_file: String,
 }
 
-fn main() -> io::Result<()> {
+fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-
-    let tags = get_grouped_tags(&args.input_file);
-    if let Ok(tags) = tags {
-        print_grouped_tags(&tags);
-    }
-
+    // let tags = get_grouped_tags(&args.input_file);
+    // let input_file = "testdata/test.dcm";
     let mut terminal = ratatui::init();
-    let app_result = App::new(args.input_file).run(&mut terminal);
+    let app_result = App::new(args.input_file)?.run(&mut terminal);
     ratatui::restore();
-    app_result
+    match app_result {
+        Ok(()) => Ok(()),
+        Err(e) => Err(anyhow::format_err!("app error: {e}")),
+    }
 }
 
 #[derive(Debug, Default)]
 pub struct App {
     input_file: String,
+    tags: GroupedTags,
     handler_text: String,
     exit: bool,
 }
 
 impl App {
-    pub fn new(input_file: String) -> Self {
-        App {
+    pub fn new(input_file: String) -> anyhow::Result<Self> {
+        let tags = get_grouped_tags(&input_file)?;
+        print_grouped_tags(&tags);
+
+        Ok(App {
             input_file,
+            tags,
             ..Default::default()
-        }
+        })
     }
 
     pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
@@ -96,6 +100,7 @@ impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_file.clone().into(), " ".into()]);
         let instructions = Line::from(vec![" Quit ".into(), "<Q> ".blue().bold()]);
+        // let tag_block = Block::default().title("Tags").render(area, buf);
         let block = Block::bordered()
             .title(title.centered())
             .title_bottom(instructions.centered())
@@ -110,7 +115,7 @@ impl Widget for &App {
 pub type TagElement = dicom_core::DataElement<dicom_object::InMemDicomObject, Vec<u8>>;
 pub type GroupedTags = HashMap<u16, Vec<TagElement>>;
 
-pub fn get_grouped_tags(filename: &str) -> Result<GroupedTags, Box<dyn std::error::Error>> {
+pub fn get_grouped_tags(filename: &str) -> anyhow::Result<GroupedTags> {
     let mut grouped_tags: GroupedTags = HashMap::new();
     let dicom_object = dicom_object::open_file(filename)?;
     for elem in dicom_object {
