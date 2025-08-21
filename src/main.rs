@@ -22,11 +22,11 @@ struct Args {
 }
 
 fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
-    // let tags = get_grouped_tags(&args.input_file);
-    // let input_file = "testdata/test.dcm";
+    // let args = Args::parse();
+    // let input_file = args.input_file;
+    let input_file = "testdata/test.dcm".to_string();
     let mut terminal = ratatui::init();
-    let app_result = App::new(args.input_file)?.run(&mut terminal);
+    let app_result = App::new(input_file)?.run(&mut terminal);
     ratatui::restore();
     match app_result {
         Ok(()) => Ok(()),
@@ -45,7 +45,6 @@ pub struct App {
 impl App {
     pub fn new(input_file: String) -> anyhow::Result<Self> {
         let tags = get_grouped_tags(&input_file)?;
-        print_grouped_tags(&tags);
 
         Ok(App {
             input_file,
@@ -106,9 +105,11 @@ impl Widget for &App {
             .title_bottom(instructions.centered())
             .border_set(border::PLAIN);
 
-        let handler_text = Text::from(vec![Line::from(vec!["Value: ".into(), self.handler_text.clone().yellow()])]);
+        // let handler_text = Text::from(vec![Line::from(vec!["Value: ".into(), self.handler_text.clone().yellow()])]);
+        // Paragraph::new(handler_text).centered().block(block.clone()).render(area, buf);
 
-        Paragraph::new(handler_text).centered().block(block).render(area, buf);
+        let tag_strings = get_tag_strings(&self.tags);
+        ratatui::widgets::List::new(tag_strings).block(block).render(area, buf);
     }
 }
 
@@ -130,31 +131,33 @@ pub fn get_grouped_tags(filename: &str) -> anyhow::Result<GroupedTags> {
     Ok(grouped_tags)
 }
 
-pub fn print_grouped_tags(grouped_tags: &GroupedTags) {
+pub fn get_tag_strings(grouped_tags: &GroupedTags) -> Vec<String> {
     let dict = dicom_dictionary_std::StandardDataDictionary::default();
+    grouped_tags
+        .iter()
+        .flat_map(|(group, elements)| {
+            std::iter::once(format!("{:#06x}", group)).chain(elements.iter().map(|tag_elem| {
+                let tag = tag_elem.header().tag;
+                let tag_info_str = if let Some(tag_info) = dict.by_tag(tag) {
+                    format!("\t{:#06x} '{}' ({}): ", tag.element(), tag_info.alias, tag_elem.vr())
+                } else {
+                    format!("\t{:#06x} <unknown> ({}): ", tag.element(), tag_elem.vr())
+                };
 
-    for (group, elements) in grouped_tags.iter() {
-        println!("{:#06x}", group);
-        for tag_elem in elements {
-            let tag = tag_elem.header().tag;
-            if let Some(tag_info) = dict.by_tag(tag) {
-                print!("\t{:#06x} '{}' ({}): ", tag.element(), tag_info.alias, tag_elem.vr());
-            } else {
-                print!("\t{:#06x} <unknown> ({}): ", tag.element(), tag_elem.vr());
-            }
-
-            // print out value
-            match tag_elem.value() {
-                dicom_core::DicomValue::Primitive(primitive_value) => {
-                    if tag_elem.vr() != dicom_core::VR::OB && tag_elem.vr() != dicom_core::VR::OW {
-                        println!("{}", primitive_value);
-                    } else {
-                        println!();
+                let value_str = match tag_elem.value() {
+                    dicom_core::DicomValue::Primitive(primitive_value) => {
+                        if tag_elem.vr() != dicom_core::VR::OB && tag_elem.vr() != dicom_core::VR::OW {
+                            primitive_value.to_string()
+                        } else {
+                            String::new()
+                        }
                     }
-                }
-                dicom_core::DicomValue::Sequence(seq) => println!("sequence with {} items", seq.items().len()),
-                dicom_core::DicomValue::PixelSequence(_) => println!("pixel sequence here"),
-            }
-        }
-    }
+                    dicom_core::DicomValue::Sequence(seq) => format!("sequence with {} items", seq.items().len()),
+                    dicom_core::DicomValue::PixelSequence(_) => "pixel sequence here".to_string(),
+                };
+
+                format!("{}{}", tag_info_str, value_str)
+            }))
+        })
+        .collect()
 }
