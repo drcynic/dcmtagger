@@ -6,11 +6,11 @@ use dicom_core::DataDictionary;
 use ratatui::{
     DefaultTerminal, Frame,
     buffer::Buffer,
-    layout::Rect,
+    layout::{Constraint, Layout, Rect},
     style::Stylize,
-    symbols::border,
+    symbols::{self, border},
     text::{Line, Text},
-    widgets::{Block, Paragraph, Widget},
+    widgets::{Block, Borders, Paragraph, Widget},
 };
 
 #[derive(Clone, Debug, Parser)]
@@ -98,18 +98,30 @@ impl App {
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_file.clone().into(), " ".into()]);
-        let instructions = Line::from(vec![" Quit ".into(), "<Q> ".blue().bold()]);
-        // let tag_block = Block::default().title("Tags").render(area, buf);
-        let block = Block::bordered()
-            .title(title.centered())
-            .title_bottom(instructions.centered())
-            .border_set(border::PLAIN);
+        // let instructions = Line::from(vec![" Quit ".into(), "<Q> ".blue().bold()]);
 
-        // let handler_text = Text::from(vec![Line::from(vec!["Value: ".into(), self.handler_text.clone().yellow()])]);
-        // Paragraph::new(handler_text).centered().block(block.clone()).render(area, buf);
+        let [list_area, state_area, input_area] =
+            Layout::vertical([Constraint::Fill(1), Constraint::Length(2), Constraint::Length(2)]).areas(area);
 
+        let bottom_vert_border_set = symbols::border::Set {
+            bottom_left: symbols::line::NORMAL.vertical_right,
+            bottom_right: symbols::line::NORMAL.vertical_left,
+            ..symbols::border::PLAIN
+        };
+        let list_block = Block::bordered().title(title.centered()).border_set(bottom_vert_border_set);
         let tag_strings = get_tag_strings(&self.tags);
-        ratatui::widgets::List::new(tag_strings).block(block).render(area, buf);
+        ratatui::widgets::List::new(tag_strings).block(list_block).render(list_area, buf);
+
+        let state_block = Block::bordered()
+            .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
+            .border_set(bottom_vert_border_set);
+        let handler_text = Text::from(vec![Line::from(vec!["Value: ".into(), self.handler_text.clone().yellow()])]);
+        Paragraph::new(handler_text).centered().block(state_block).render(state_area, buf);
+
+        let input_block = Block::bordered()
+            .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
+            .border_set(border::PLAIN);
+        Paragraph::new("").block(input_block).render(input_area, buf);
     }
 }
 
