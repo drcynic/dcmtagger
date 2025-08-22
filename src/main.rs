@@ -1,7 +1,7 @@
 use std::{collections::HashMap, io};
 
 use clap::Parser;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use dicom_core::DataDictionary;
 use ratatui::{
     DefaultTerminal, Frame,
@@ -78,7 +78,13 @@ impl App {
         match key_event.code {
             KeyCode::Char('q') | KeyCode::Esc => self.exit(),
             KeyCode::Up | KeyCode::Char('k') => self.move_up(),
+            KeyCode::Char('p') if key_event.modifiers.contains(KeyModifiers::CONTROL) => self.move_up(),
             KeyCode::Down | KeyCode::Char('j') => self.move_down(),
+            KeyCode::Char('n') if key_event.modifiers.contains(KeyModifiers::CONTROL) => self.move_down(),
+            KeyCode::Char('d') if key_event.modifiers.contains(KeyModifiers::CONTROL) => self.move_half_page_down(),
+            KeyCode::Char('u') if key_event.modifiers.contains(KeyModifiers::CONTROL) => self.move_half_page_up(),
+            // KeyCode::('gg') => self.move_to_start(), // !todo
+            KeyCode::Char('G') => self.move_to_last(),
             _ => {}
         }
     }
@@ -95,6 +101,33 @@ impl App {
     fn move_up(&mut self) {
         self.handler_text = "up".to_string();
         self.tags_view_state.select_previous();
+    }
+
+    fn move_half_page_down(&mut self) {
+        self.handler_text = "ctrl + d -> half page up".to_string();
+        self.move_tag_view_selection(20);
+    }
+
+    fn move_half_page_up(&mut self) {
+        self.handler_text = "ctrl + u -> half page up".to_string();
+        self.move_tag_view_selection(-20);
+    }
+
+    fn move_to_last(&mut self) {
+        self.handler_text = "G -> move to end".to_string();
+        self.tags_view_state.select_last();
+    }
+
+    fn move_tag_view_selection(&mut self, offset: i32) {
+        let next = self.tags_view_state.selected().map_or(0, |i| {
+            let abs_offset = offset.abs() as usize;
+            if offset < 0 {
+                i.saturating_sub(abs_offset)
+            } else {
+                i.saturating_add(abs_offset)
+            }
+        });
+        self.tags_view_state.select(Some(next));
     }
 }
 
