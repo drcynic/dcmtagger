@@ -7,10 +7,10 @@ use ratatui::{
     DefaultTerminal, Frame,
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
-    style::Stylize,
+    style::{Color, Style, Stylize},
     symbols::{self, border},
     text::{Line, Text},
-    widgets::{Block, Borders, Paragraph, Widget},
+    widgets::{Block, Borders, ListState, Paragraph, StatefulWidget, Widget},
 };
 
 #[derive(Clone, Debug, Parser)]
@@ -38,6 +38,7 @@ fn main() -> anyhow::Result<()> {
 pub struct App {
     input_file: String,
     tags: GroupedTags,
+    tags_view_state: ListState,
     handler_text: String,
     exit: bool,
 }
@@ -61,7 +62,7 @@ impl App {
         Ok(())
     }
 
-    fn draw(&self, frame: &mut Frame) {
+    fn draw(&mut self, frame: &mut Frame) {
         frame.render_widget(self, frame.area());
     }
 
@@ -88,14 +89,16 @@ impl App {
 
     fn move_down(&mut self) {
         self.handler_text = "down".to_string();
+        self.tags_view_state.select_next();
     }
 
     fn move_up(&mut self) {
         self.handler_text = "up".to_string();
+        self.tags_view_state.select_previous();
     }
 }
 
-impl Widget for &App {
+impl Widget for &mut App {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_file.clone().into(), " ".into()]);
         // let instructions = Line::from(vec![" Quit ".into(), "<Q> ".blue().bold()]);
@@ -108,9 +111,13 @@ impl Widget for &App {
             bottom_right: symbols::line::NORMAL.vertical_left,
             ..symbols::border::PLAIN
         };
+
         let list_block = Block::bordered().title(title.centered()).border_set(bottom_vert_border_set);
         let tag_strings = get_tag_strings(&self.tags);
-        ratatui::widgets::List::new(tag_strings).block(list_block).render(list_area, buf);
+        let list = ratatui::widgets::List::new(tag_strings)
+            .block(list_block)
+            .highlight_style(Style::default().bg(Color::DarkGray));
+        StatefulWidget::render(list, list_area, buf, &mut self.tags_view_state);
 
         let state_block = Block::bordered()
             .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
@@ -151,9 +158,9 @@ pub fn get_tag_strings(grouped_tags: &GroupedTags) -> Vec<String> {
             std::iter::once(format!("{:#06x}", group)).chain(elements.iter().map(|tag_elem| {
                 let tag = tag_elem.header().tag;
                 let tag_info_str = if let Some(tag_info) = dict.by_tag(tag) {
-                    format!("\t{:#06x} '{}' ({}): ", tag.element(), tag_info.alias, tag_elem.vr())
+                    format!("    {:#06x} '{}' ({}): ", tag.element(), tag_info.alias, tag_elem.vr())
                 } else {
-                    format!("\t{:#06x} <unknown> ({}): ", tag.element(), tag_elem.vr())
+                    format!("    {:#06x} <unknown> ({}): ", tag.element(), tag_elem.vr())
                 };
 
                 let value_str = match tag_elem.value() {
