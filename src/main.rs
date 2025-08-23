@@ -1,4 +1,7 @@
-use std::{collections::HashMap, io};
+use std::{
+    collections::{BTreeMap, HashMap},
+    io,
+};
 
 use clap::Parser;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -240,10 +243,10 @@ impl Widget for &mut App {
 }
 
 pub type TagElement = dicom_core::DataElement<dicom_object::InMemDicomObject, Vec<u8>>;
-pub type GroupedTags = HashMap<u16, Vec<TagElement>>;
+pub type GroupedTags = BTreeMap<u16, Vec<TagElement>>;
 
 pub fn grouped_tags(filename: &str) -> anyhow::Result<GroupedTags> {
-    let mut grouped_tags: GroupedTags = HashMap::new();
+    let mut grouped_tags: GroupedTags = BTreeMap::new();
     let dicom_object = dicom_object::open_file(filename)?;
     for elem in dicom_object {
         let tag_entry = elem.header().tag;
