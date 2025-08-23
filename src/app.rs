@@ -8,7 +8,7 @@ use ratatui::{
     style::{Color, Style, Stylize},
     symbols::{self, border},
     text::{Line, Text},
-    widgets::{Block, Borders, Clear, ListState, Paragraph, StatefulWidget, Widget},
+    widgets::{Block, Borders, Clear, ListState, Padding, Paragraph, StatefulWidget, Widget},
 };
 
 use crate::dicom::{GroupedTags, grouped_tags, tag_strings};
@@ -173,7 +173,10 @@ impl<'a> App<'a> {
         let end_line = (start_line + visible_height).min(help_lines.len());
         let help_text = help_lines[start_line..end_line].join("\n");
 
-        let help_block = Block::bordered().title(" Help".bold()).border_set(border::ROUNDED);
+        let help_block = Block::bordered()
+            .padding(Padding::horizontal(1))
+            .title(Line::from(" DICOM Tagger Help".bold()).centered())
+            .border_set(border::ROUNDED);
 
         Paragraph::new(help_text).block(help_block).render(popup_area, buf);
     }
@@ -193,7 +196,10 @@ impl<'a> Widget for &mut App<'a> {
             ..symbols::border::PLAIN
         };
 
-        let list_block = Block::bordered().title(title.centered()).border_set(bottom_vert_border_set);
+        let list_block = Block::bordered()
+            .title(title.centered())
+            .border_set(bottom_vert_border_set)
+            .padding(Padding::horizontal(1));
         let tag_strings = tag_strings(&self.tags);
         let list = ratatui::widgets::List::new(tag_strings)
             .block(list_block)
@@ -219,9 +225,7 @@ impl<'a> Widget for &mut App<'a> {
 }
 
 pub const fn help_text() -> &'static str {
-    r#"DICOM Tagger Help
-
-Navigation:
+    r#"Navigation:
   k/↑/ctrl+p     - Move up
   j/↓/ctrl+n     - Move down
   ctrl+u         - Move half page up
