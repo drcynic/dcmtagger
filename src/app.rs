@@ -83,6 +83,8 @@ impl<'a> App<'a> {
                 KeyCode::Char('u') if key_event.modifiers.contains(KeyModifiers::CONTROL) => self.move_half_page_up(),
                 KeyCode::Char('g') => self.move_to_first(),
                 KeyCode::Char('G') => self.move_to_last(),
+                KeyCode::Char('E') => self.open_all(),
+                KeyCode::Char('C') => self.close_all(),
                 KeyCode::Enter | KeyCode::Char(' ') => self.toggle_node(),
                 _ => {}
             }
@@ -149,6 +151,18 @@ impl<'a> App<'a> {
     fn toggle_node(&mut self) {
         self.handler_text = "toggled node".to_string();
         self.tree_state.toggle_selected();
+    }
+
+    fn open_all(&mut self) {
+        self.handler_text = "shift + E -> expand all".to_string();
+        self.tree_state.flatten(&self.tree_items).iter().for_each(|node| {
+            self.tree_state.open(node.identifier.clone());
+        });
+    }
+
+    fn close_all(&mut self) {
+        self.handler_text = "shift + C -> collapse all".to_string();
+        self.tree_state.close_all();
     }
 
     fn render_help_overlay(&self, area: Rect, buf: &mut Buffer) {
