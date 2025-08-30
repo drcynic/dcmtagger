@@ -8,16 +8,17 @@ use ratatui::{
     style::{Color, Style, Stylize},
     symbols::{self, border},
     text::{Line, Text},
-    widgets::{Block, Borders, Clear, ListState, Padding, Paragraph, StatefulWidget, Widget},
+    widgets::{Block, Borders, Clear, Padding, Paragraph, StatefulWidget, Widget},
 };
+use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use crate::dicom::{GroupedTags, grouped_tags, tag_strings};
+use crate::dicom::{GroupedTags, grouped_tags};
 
 #[derive(Debug, Default)]
 pub struct App<'a> {
     input_file: &'a str,
     tags: GroupedTags,
-    tags_view_state: ListState,
+    tree_state: TreeState<String>,
     handler_text: String,
     exit: bool,
     show_help: bool,
@@ -27,10 +28,13 @@ pub struct App<'a> {
 impl<'a> App<'a> {
     pub fn new(input_file: &'a str) -> anyhow::Result<Self> {
         let tags = grouped_tags(&input_file)?;
+        let mut tree_state = TreeState::default();
+        tree_state.select_first();
 
         Ok(App {
             input_file,
             tags,
+            tree_state,
             ..Default::default()
         })
     }
@@ -76,6 +80,7 @@ impl<'a> App<'a> {
                 KeyCode::Char('u') if key_event.modifiers.contains(KeyModifiers::CONTROL) => self.move_half_page_up(),
                 KeyCode::Char('g') => self.move_to_first(),
                 KeyCode::Char('G') => self.move_to_last(),
+                KeyCode::Enter | KeyCode::Char(' ') => self.toggle_node(),
                 _ => {}
             }
         }
@@ -110,44 +115,41 @@ impl<'a> App<'a> {
 
     fn move_down(&mut self) {
         self.handler_text = "down".to_string();
-        self.tags_view_state.select_next();
+        self.tree_state.key_down();
     }
 
     fn move_up(&mut self) {
         self.handler_text = "up".to_string();
-        self.tags_view_state.select_previous();
+        self.tree_state.key_up();
     }
 
     fn move_half_page_down(&mut self) {
-        self.handler_text = "ctrl + d -> half page up".to_string();
-        self.move_tag_view_selection(20);
+        self.handler_text = "ctrl + d -> half page down".to_string();
+        for _ in 0..10 {
+            self.tree_state.key_down();
+        }
     }
 
     fn move_half_page_up(&mut self) {
         self.handler_text = "ctrl + u -> half page up".to_string();
-        self.move_tag_view_selection(-20);
+        for _ in 0..10 {
+            self.tree_state.key_up();
+        }
     }
 
     fn move_to_first(&mut self) {
         self.handler_text = "g -> move to first".to_string();
-        self.tags_view_state.select_first();
+        self.tree_state.select_first();
     }
 
     fn move_to_last(&mut self) {
         self.handler_text = "G -> move to last".to_string();
-        self.tags_view_state.select_last();
+        self.tree_state.select_last();
     }
 
-    fn move_tag_view_selection(&mut self, offset: i32) {
-        let next = self.tags_view_state.selected().map_or(0, |i| {
-            let abs_offset = offset.abs() as usize;
-            if offset < 0 {
-                i.saturating_sub(abs_offset)
-            } else {
-                i.saturating_add(abs_offset)
-            }
-        });
-        self.tags_view_state.select(Some(next));
+    fn toggle_node(&mut self) {
+        self.handler_text = "toggled node".to_string();
+        self.tree_state.toggle_selected();
     }
 
     fn render_help_overlay(&self, area: Rect, buf: &mut Buffer) {
@@ -182,6 +184,54 @@ impl<'a> App<'a> {
     }
 }
 
+fn build_tree_items(tags: &GroupedTags) -> Vec<TreeItem<String>> {
+    use dicom_core::DataDictionary;
+    let dict = dicom_dictionary_std::StandardDataDictionary::default();
+
+    tags.iter()
+        .map(|(group, elements)| {
+            let group_text = format!("Group {:#06x}", group);
+            let group_id = format!("group_{:04x}", group);
+
+            let children: Vec<TreeItem<String>> = elements
+                .iter()
+                .enumerate()
+                .map(|(idx, tag_elem)| {
+                    let tag = tag_elem.header().tag;
+                    let tag_info_str = if let Some(tag_info) = dict.by_tag(tag) {
+                        format!("{:#06x} '{}' ({})", tag.element(), tag_info.alias, tag_elem.vr())
+                    } else {
+                        format!("{:#06x} <unknown> ({})", tag.element(), tag_elem.vr())
+                    };
+
+                    let value_str = match tag_elem.value() {
+                        dicom_core::DicomValue::Primitive(primitive_value) => {
+                            if tag_elem.vr() != dicom_core::VR::OB && tag_elem.vr() != dicom_core::VR::OW {
+                                let value_str = primitive_value.to_string();
+                                if value_str.len() > 80 {
+                                    format!(": {}...", &value_str[..77])
+                                } else {
+                                    format!(": {}", value_str)
+                                }
+                            } else {
+                                String::new()
+                            }
+                        }
+                        dicom_core::DicomValue::Sequence(seq) => format!(": sequence with {} items", seq.items().len()),
+                        dicom_core::DicomValue::PixelSequence(_) => ": pixel sequence".to_string(),
+                    };
+
+                    let full_text = format!("{}{}", tag_info_str, value_str);
+                    let child_id = format!("{}_elem_{}", group_id, idx);
+                    TreeItem::new_leaf(child_id, full_text)
+                })
+                .collect();
+
+            TreeItem::new(group_id, group_text, children).expect("all child identifiers are unique")
+        })
+        .collect()
+}
+
 impl<'a> Widget for &mut App<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_file.into(), " ".into()]);
@@ -196,15 +246,18 @@ impl<'a> Widget for &mut App<'a> {
             ..symbols::border::PLAIN
         };
 
-        let list_block = Block::bordered()
+        // Build tree items first to avoid borrowing conflicts
+        let tree_items = build_tree_items(&self.tags);
+
+        let tree_block = Block::bordered()
             .title(title.centered())
             .border_set(bottom_vert_border_set)
             .padding(Padding::horizontal(1));
-        let tag_strings = tag_strings(&self.tags);
-        let list = ratatui::widgets::List::new(tag_strings)
-            .block(list_block)
+        let tree = Tree::new(&tree_items)
+            .expect("all item identifiers are unique")
+            .block(tree_block)
             .highlight_style(Style::default().bg(Color::DarkGray));
-        StatefulWidget::render(list, list_area, buf, &mut self.tags_view_state);
+        StatefulWidget::render(tree, list_area, buf, &mut self.tree_state);
 
         let state_block = Block::bordered()
             .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
@@ -232,7 +285,29 @@ pub const fn help_text() -> &'static str {
   ctrl+d         - Move half page down
   g              - Move to first element
   G              - Move to last element
+  Enter/Space    - Toggle expand/collapse
   ?              - Show help
   q/Esc          - Quit
 "#
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn test_tree_structure() {
+        let mut tags = BTreeMap::new();
+        let elements = vec![];
+        tags.insert(0x0008, elements.clone());
+        tags.insert(0x0010, elements);
+
+        let tree_items = build_tree_items(&tags);
+
+        assert_eq!(tree_items.len(), 2, "Should have 2 groups");
+
+        assert_eq!(tree_items[0].identifier(), "group_0008");
+        assert_eq!(tree_items[1].identifier(), "group_0010");
+    }
 }
