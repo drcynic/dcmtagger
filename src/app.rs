@@ -18,6 +18,7 @@ use crate::dicom::{GroupedTags, grouped_tags};
 pub struct App<'a> {
     input_file: &'a str,
     tags: GroupedTags,
+    tree_items: Vec<TreeItem<'static, String>>,
     tree_state: TreeState<String>,
     handler_text: String,
     exit: bool,
@@ -28,12 +29,14 @@ pub struct App<'a> {
 impl<'a> App<'a> {
     pub fn new(input_file: &'a str) -> anyhow::Result<Self> {
         let tags = grouped_tags(&input_file)?;
+        let tree_items = build_tree_items(&tags);
         let mut tree_state = TreeState::default();
         tree_state.select_first();
 
         Ok(App {
             input_file,
             tags,
+            tree_items,
             tree_state,
             ..Default::default()
         })
@@ -184,7 +187,7 @@ impl<'a> App<'a> {
     }
 }
 
-fn build_tree_items(tags: &GroupedTags) -> Vec<TreeItem<String>> {
+fn build_tree_items(tags: &GroupedTags) -> Vec<TreeItem<'static, String>> {
     use dicom_core::DataDictionary;
     let dict = dicom_dictionary_std::StandardDataDictionary::default();
 
@@ -246,14 +249,11 @@ impl<'a> Widget for &mut App<'a> {
             ..symbols::border::PLAIN
         };
 
-        // Build tree items first to avoid borrowing conflicts
-        let tree_items = build_tree_items(&self.tags);
-
         let tree_block = Block::bordered()
             .title(title.centered())
             .border_set(bottom_vert_border_set)
             .padding(Padding::horizontal(1));
-        let tree = Tree::new(&tree_items)
+        let tree = Tree::new(&self.tree_items)
             .expect("all item identifiers are unique")
             .block(tree_block)
             .highlight_style(Style::default().bg(Color::DarkGray));
