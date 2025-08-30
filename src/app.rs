@@ -128,16 +128,12 @@ impl<'a> App<'a> {
 
     fn move_half_page_down(&mut self) {
         self.handler_text = "ctrl + d -> half page down".to_string();
-        for _ in 0..10 {
-            self.tree_state.key_down();
-        }
+        self.tree_state.select_relative(|c| c.map_or(0, |c| c.saturating_add(10)));
     }
 
     fn move_half_page_up(&mut self) {
         self.handler_text = "ctrl + u -> half page up".to_string();
-        for _ in 0..10 {
-            self.tree_state.key_up();
-        }
+        self.tree_state.select_relative(|c| c.map_or(0, |c| c.saturating_sub(10)));
     }
 
     fn move_to_first(&mut self) {
