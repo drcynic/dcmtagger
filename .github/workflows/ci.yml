@@ -38,13 +38,13 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: cargo clippy --release --all-targets --all-features -- -D warnings
 
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --release
 
       - name: Build release
-        run: cargo build --release --verbose
+        run: cargo build --release
 
       - name: Upload release binary
         uses: actions/upload-artifact@v4
