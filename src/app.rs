@@ -81,6 +81,10 @@ impl<'a> App<'a> {
                 KeyCode::Char('n') if key_event.modifiers.contains(KeyModifiers::CONTROL) => self.move_down(),
                 KeyCode::Char('d') if key_event.modifiers.contains(KeyModifiers::CONTROL) => self.move_half_page_down(),
                 KeyCode::Char('u') if key_event.modifiers.contains(KeyModifiers::CONTROL) => self.move_half_page_up(),
+                KeyCode::Char('f') if key_event.modifiers.contains(KeyModifiers::CONTROL) => self.move_page_down(),
+                KeyCode::PageDown => self.move_page_down(),
+                KeyCode::Char('b') if key_event.modifiers.contains(KeyModifiers::CONTROL) => self.move_page_up(),
+                KeyCode::PageUp => self.move_page_up(),
                 KeyCode::Char('g') => self.move_to_first(),
                 KeyCode::Char('G') => self.move_to_last(),
                 KeyCode::Char('E') => self.open_all(),
@@ -136,6 +140,16 @@ impl<'a> App<'a> {
     fn move_half_page_up(&mut self) {
         self.handler_text = "ctrl + u -> half page up".to_string();
         self.tree_state.select_relative(|c| c.map_or(0, |c| c.saturating_sub(10)));
+    }
+
+    fn move_page_down(&mut self) {
+        self.handler_text = "ctrl + f/page-down -> one screen down".to_string();
+        self.tree_state.select_relative(|c| c.map_or(0, |c| c.saturating_add(20)));
+    }
+
+    fn move_page_up(&mut self) {
+        self.handler_text = "ctrl + b/page-up -> one screen up".to_string();
+        self.tree_state.select_relative(|c| c.map_or(0, |c| c.saturating_sub(20)));
     }
 
     fn move_to_first(&mut self) {
@@ -289,15 +303,17 @@ impl<'a> Widget for &mut App<'a> {
 
 pub const fn help_text() -> &'static str {
     r#"Navigation:
-  k/↑/ctrl+p     - Move up
-  j/↓/ctrl+n     - Move down
-  ctrl+u         - Move half page up
-  ctrl+d         - Move half page down
-  g              - Move to first element
-  G              - Move to last element
-  Enter/Space    - Toggle expand/collapse
-  ?              - Show help
-  q/Esc          - Quit
+  k/↑/ctrl+p           - Move up
+  j/↓/ctrl+n           - Move down
+  ctrl+u               - Move half page up
+  ctrl+d               - Move half page down
+  ctrl+f/page-down     - Move page down
+  ctrl+b/page-up       - Move page up
+  g                    - Move to first element
+  G                    - Move to last element
+  Enter/Space          - Toggle expand/collapse
+  ?                    - Show help
+  q/Esc                - Quit
 "#
 }
 
