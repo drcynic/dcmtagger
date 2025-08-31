@@ -20,6 +20,7 @@ pub struct App<'a> {
     tags: GroupedTags,
     tree_items: Vec<TreeItem<'static, String>>,
     tree_state: TreeState<String>,
+    page_size: usize,
     handler_text: String,
     exit: bool,
     show_help: bool,
@@ -51,7 +52,14 @@ impl<'a> App<'a> {
     }
 
     fn draw(&mut self, frame: &mut Frame) {
+        let [list_area, _, _] = App::layouted_areas(frame.area());
+        self.page_size = list_area.height.saturating_sub(4) as usize;
+
         frame.render_widget(self, frame.area());
+    }
+
+    fn layouted_areas(area: Rect) -> [Rect; 3] {
+        Layout::vertical([Constraint::Fill(1), Constraint::Length(2), Constraint::Length(2)]).areas(area)
     }
 
     fn handle_events(&mut self) -> io::Result<()> {
@@ -134,22 +142,26 @@ impl<'a> App<'a> {
 
     fn move_half_page_down(&mut self) {
         self.handler_text = "ctrl + d -> half page down".to_string();
-        self.tree_state.select_relative(|c| c.map_or(0, |c| c.saturating_add(10)));
+        self.tree_state
+            .select_relative(|c| c.map_or(0, |c| c.saturating_add(self.page_size / 2)));
     }
 
     fn move_half_page_up(&mut self) {
         self.handler_text = "ctrl + u -> half page up".to_string();
-        self.tree_state.select_relative(|c| c.map_or(0, |c| c.saturating_sub(10)));
+        self.tree_state
+            .select_relative(|c| c.map_or(0, |c| c.saturating_sub(self.page_size / 2)));
     }
 
     fn move_page_down(&mut self) {
         self.handler_text = "ctrl + f/page-down -> one screen down".to_string();
-        self.tree_state.select_relative(|c| c.map_or(0, |c| c.saturating_add(20)));
+        self.tree_state
+            .select_relative(|c| c.map_or(0, |c| c.saturating_add(self.page_size)));
     }
 
     fn move_page_up(&mut self) {
         self.handler_text = "ctrl + b/page-up -> one screen up".to_string();
-        self.tree_state.select_relative(|c| c.map_or(0, |c| c.saturating_sub(20)));
+        self.tree_state
+            .select_relative(|c| c.map_or(0, |c| c.saturating_sub(self.page_size)));
     }
 
     fn move_to_first(&mut self) {
@@ -264,8 +276,7 @@ impl<'a> Widget for &mut App<'a> {
         let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_file.into(), " ".into()]);
         // let instructions = Line::from(vec![" Quit ".into(), "<Q> ".blue().bold()]);
 
-        let [list_area, state_area, input_area] =
-            Layout::vertical([Constraint::Fill(1), Constraint::Length(2), Constraint::Length(2)]).areas(area);
+        let [list_area, state_area, input_area] = App::<'a>::layouted_areas(area);
 
         let bottom_vert_border_set = symbols::border::Set {
             bottom_left: symbols::line::NORMAL.vertical_right,
