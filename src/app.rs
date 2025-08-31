@@ -232,12 +232,12 @@ fn build_tree_items(dicom_input: &DicomInput) -> Vec<TreeItem<'static, String>> 
 }
 
 fn build_file_tree_items(tags: &GroupedTags) -> Vec<TreeItem<'static, String>> {
-    let dict = dicom_dictionary_std::StandardDataDictionary::default();
+    let dict = dicom_dictionary_std::StandardDataDictionary;
 
     tags.iter()
         .map(|(group, elements)| {
-            let group_text = format!("Group {:#06x}", group);
-            let group_id = format!("group_{:04x}", group);
+            let group_text = format!("Group {group:#06x}");
+            let group_id = format!("group_{group:04x}");
 
             let children = build_element_tree_items(&dict, elements, &group_id);
             TreeItem::new(group_id, group_text, children).expect("all child identifiers are unique")
@@ -251,19 +251,19 @@ fn build_directory_tree_items(
 ) -> Vec<TreeItem<'static, String>> {
     use std::path::Path;
 
-    let dict = dicom_dictionary_std::StandardDataDictionary::default();
+    let dict = dicom_dictionary_std::StandardDataDictionary;
     let dir_display_name = Path::new(dir_name).file_name().and_then(|n| n.to_str()).unwrap_or(dir_name);
 
     let file_children: Vec<TreeItem<String>> = file_tags
         .iter()
         .map(|(filename, tags)| {
-            let file_id = format!("file_{}", filename.replace('.', "_").replace(' ', "_"));
+            let file_id = format!("file_{}", filename.replace(['.', ' '], "_"));
 
             let group_children: Vec<TreeItem<String>> = tags
                 .iter()
                 .map(|(group, elements)| {
-                    let group_text = format!("Group {:#06x}", group);
-                    let group_id = format!("{}_{:04x}", file_id, group);
+                    let group_text = format!("Group {group:#06x}");
+                    let group_id = format!("{file_id}_{group:04x}");
                     let element_children = build_element_tree_items(&dict, elements, &group_id);
 
                     TreeItem::new(group_id, group_text, element_children).expect("all child identifiers are unique")
@@ -303,7 +303,7 @@ fn build_element_tree_items(
                         if value_str.len() > 80 {
                             format!(": {}...", &value_str[..77])
                         } else {
-                            format!(": {}", value_str)
+                            format!(": {value_str}")
                         }
                     } else {
                         String::new()
@@ -313,8 +313,8 @@ fn build_element_tree_items(
                 dicom_core::DicomValue::PixelSequence(_) => ": pixel sequence".to_string(),
             };
 
-            let full_text = format!("{}{}", tag_info_str, value_str);
-            let child_id = format!("{}_elem_{}", group_id, idx);
+            let full_text = format!("{tag_info_str}{value_str}");
+            let child_id = format!("{group_id}_elem_{idx}");
             TreeItem::new_leaf(child_id, full_text)
         })
         .collect()

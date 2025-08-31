@@ -53,17 +53,15 @@ fn grouped_tags_from_directory(dir_path: &str) -> anyhow::Result<FileGroupedTags
         let entry = entry?;
         let path = entry.path();
 
-        if path.is_file() {
-            if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                // Try to open as DICOM file
-                match grouped_tags_from_file(path.to_str().unwrap()) {
-                    Ok(tags) => {
-                        file_tags.insert(file_name.to_string(), tags);
-                    }
-                    Err(_) => {
-                        // Skip non-DICOM files silently
-                        continue;
-                    }
+        if path.is_file()
+            && let Some(file_name) = path.file_name().and_then(|n| n.to_str())
+        {
+            match grouped_tags_from_file(path.to_str().unwrap()) {
+                Ok(tags) => {
+                    file_tags.insert(file_name.to_string(), tags);
+                }
+                Err(_) => {
+                    continue; // Skip non-DICOM files silently
                 }
             }
         }
