@@ -12,12 +12,11 @@ use ratatui::{
 };
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use crate::dicom::{GroupedTags, grouped_tags};
+use crate::dicom::{DicomInput, GroupedTags, process_dicom_input};
 
 #[derive(Debug, Default)]
 pub struct App<'a> {
-    input_file: &'a str,
-    tags: GroupedTags,
+    input_path: &'a str,
     tree_items: Vec<TreeItem<'static, String>>,
     tree_state: TreeState<String>,
     page_size: usize,
@@ -28,15 +27,14 @@ pub struct App<'a> {
 }
 
 impl<'a> App<'a> {
-    pub fn new(input_file: &'a str) -> anyhow::Result<Self> {
-        let tags = grouped_tags(&input_file)?;
-        let tree_items = build_tree_items(&tags);
+    pub fn new(input_path: &'a str) -> anyhow::Result<Self> {
+        let dicom_input = process_dicom_input(input_path)?;
+        let tree_items = build_tree_items(&dicom_input);
         let mut tree_state = TreeState::default();
         tree_state.select_first();
 
         Ok(App {
-            input_file,
-            tags,
+            input_path,
             tree_items,
             tree_state,
             ..Default::default()
@@ -51,7 +49,7 @@ impl<'a> App<'a> {
         Ok(())
     }
 
-    fn draw(&mut self, frame: &mut Frame) {
+    pub fn draw(&mut self, frame: &mut Frame) {
         let [list_area, _, _] = App::layouted_areas(frame.area());
         self.page_size = list_area.height.saturating_sub(4) as usize;
 
@@ -63,10 +61,13 @@ impl<'a> App<'a> {
     }
 
     fn handle_events(&mut self) -> io::Result<()> {
-        match event::read()? {
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => self.handle_key_event(key_event),
-            _ => {}
-        };
+        // Add timeout to prevent blocking indefinitely
+        if event::poll(std::time::Duration::from_millis(100))? {
+            match event::read()? {
+                Event::Key(key_event) if key_event.kind == KeyEventKind::Press => self.handle_key_event(key_event),
+                _ => {}
+            };
+        }
         Ok(())
     }
 
@@ -223,8 +224,14 @@ impl<'a> App<'a> {
     }
 }
 
-fn build_tree_items(tags: &GroupedTags) -> Vec<TreeItem<'static, String>> {
-    use dicom_core::DataDictionary;
+fn build_tree_items(dicom_input: &DicomInput) -> Vec<TreeItem<'static, String>> {
+    match dicom_input {
+        DicomInput::File(tags) => build_file_tree_items(tags),
+        DicomInput::Directory(dir_name, file_tags) => build_directory_tree_items(dir_name, file_tags),
+    }
+}
+
+fn build_file_tree_items(tags: &GroupedTags) -> Vec<TreeItem<'static, String>> {
     let dict = dicom_dictionary_std::StandardDataDictionary::default();
 
     tags.iter()
@@ -232,48 +239,90 @@ fn build_tree_items(tags: &GroupedTags) -> Vec<TreeItem<'static, String>> {
             let group_text = format!("Group {:#06x}", group);
             let group_id = format!("group_{:04x}", group);
 
-            let children: Vec<TreeItem<String>> = elements
+            let children = build_element_tree_items(&dict, elements, &group_id);
+            TreeItem::new(group_id, group_text, children).expect("all child identifiers are unique")
+        })
+        .collect()
+}
+
+fn build_directory_tree_items(
+    dir_name: &str,
+    file_tags: &std::collections::BTreeMap<String, GroupedTags>,
+) -> Vec<TreeItem<'static, String>> {
+    use std::path::Path;
+
+    let dict = dicom_dictionary_std::StandardDataDictionary::default();
+    let dir_display_name = Path::new(dir_name).file_name().and_then(|n| n.to_str()).unwrap_or(dir_name);
+
+    let file_children: Vec<TreeItem<String>> = file_tags
+        .iter()
+        .map(|(filename, tags)| {
+            let file_id = format!("file_{}", filename.replace('.', "_").replace(' ', "_"));
+
+            let group_children: Vec<TreeItem<String>> = tags
                 .iter()
-                .enumerate()
-                .map(|(idx, tag_elem)| {
-                    let tag = tag_elem.header().tag;
-                    let tag_info_str = if let Some(tag_info) = dict.by_tag(tag) {
-                        format!("{:#06x} '{}' ({})", tag.element(), tag_info.alias, tag_elem.vr())
-                    } else {
-                        format!("{:#06x} <unknown> ({})", tag.element(), tag_elem.vr())
-                    };
+                .map(|(group, elements)| {
+                    let group_text = format!("Group {:#06x}", group);
+                    let group_id = format!("{}_{:04x}", file_id, group);
+                    let element_children = build_element_tree_items(&dict, elements, &group_id);
 
-                    let value_str = match tag_elem.value() {
-                        dicom_core::DicomValue::Primitive(primitive_value) => {
-                            if tag_elem.vr() != dicom_core::VR::OB && tag_elem.vr() != dicom_core::VR::OW {
-                                let value_str = primitive_value.to_string();
-                                if value_str.len() > 80 {
-                                    format!(": {}...", &value_str[..77])
-                                } else {
-                                    format!(": {}", value_str)
-                                }
-                            } else {
-                                String::new()
-                            }
-                        }
-                        dicom_core::DicomValue::Sequence(seq) => format!(": sequence with {} items", seq.items().len()),
-                        dicom_core::DicomValue::PixelSequence(_) => ": pixel sequence".to_string(),
-                    };
-
-                    let full_text = format!("{}{}", tag_info_str, value_str);
-                    let child_id = format!("{}_elem_{}", group_id, idx);
-                    TreeItem::new_leaf(child_id, full_text)
+                    TreeItem::new(group_id, group_text, element_children).expect("all child identifiers are unique")
                 })
                 .collect();
 
-            TreeItem::new(group_id, group_text, children).expect("all child identifiers are unique")
+            TreeItem::new(file_id, filename.clone(), group_children).expect("all child identifiers are unique")
+        })
+        .collect();
+
+    vec![
+        TreeItem::new("root_directory".to_string(), dir_display_name.to_string(), file_children).expect("all child identifiers are unique"),
+    ]
+}
+
+fn build_element_tree_items(
+    dict: &dicom_dictionary_std::StandardDataDictionary,
+    elements: &[crate::dicom::TagElement],
+    group_id: &str,
+) -> Vec<TreeItem<'static, String>> {
+    use dicom_core::DataDictionary;
+    elements
+        .iter()
+        .enumerate()
+        .map(|(idx, tag_elem)| {
+            let tag = tag_elem.header().tag;
+            let tag_info_str = if let Some(tag_info) = dict.by_tag(tag) {
+                format!("{:#06x} '{}' ({})", tag.element(), tag_info.alias, tag_elem.vr())
+            } else {
+                format!("{:#06x} <unknown> ({})", tag.element(), tag_elem.vr())
+            };
+
+            let value_str = match tag_elem.value() {
+                dicom_core::DicomValue::Primitive(primitive_value) => {
+                    if tag_elem.vr() != dicom_core::VR::OB && tag_elem.vr() != dicom_core::VR::OW {
+                        let value_str = primitive_value.to_string();
+                        if value_str.len() > 80 {
+                            format!(": {}...", &value_str[..77])
+                        } else {
+                            format!(": {}", value_str)
+                        }
+                    } else {
+                        String::new()
+                    }
+                }
+                dicom_core::DicomValue::Sequence(seq) => format!(": sequence with {} items", seq.items().len()),
+                dicom_core::DicomValue::PixelSequence(_) => ": pixel sequence".to_string(),
+            };
+
+            let full_text = format!("{}{}", tag_info_str, value_str);
+            let child_id = format!("{}_elem_{}", group_id, idx);
+            TreeItem::new_leaf(child_id, full_text)
         })
         .collect()
 }
 
 impl<'a> Widget for &mut App<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_file.into(), " ".into()]);
+        let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_path.into(), " ".into()]);
         // let instructions = Line::from(vec![" Quit ".into(), "<Q> ".blue().bold()]);
 
         let [list_area, state_area, input_area] = App::<'a>::layouted_areas(area);
@@ -323,6 +372,8 @@ pub const fn help_text() -> &'static str {
   g                    - Move to first element
   G                    - Move to last element
   Enter/Space          - Toggle expand/collapse
+  E                    - Expand all nodes
+  C                    - Collapse all nodes
   ?                    - Show help
   q/Esc                - Quit
 "#
@@ -334,13 +385,13 @@ mod tests {
     use std::collections::BTreeMap;
 
     #[test]
-    fn test_tree_structure() {
+    fn test_file_tree_structure() {
         let mut tags = BTreeMap::new();
         let elements = vec![];
         tags.insert(0x0008, elements.clone());
         tags.insert(0x0010, elements);
 
-        let tree_items = build_tree_items(&tags);
+        let tree_items = build_file_tree_items(&tags);
 
         assert_eq!(tree_items.len(), 2, "Should have 2 groups");
 

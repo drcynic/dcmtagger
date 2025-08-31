@@ -10,15 +10,16 @@ use app::App;
 #[clap(about = "Copyright (c) 2025 Daniel Szymanski")]
 struct Args {
     #[clap(value_parser)]
-    input_file: String,
+    input_path: String,
 }
 
 fn main() -> anyhow::Result<()> {
     // let args = Args::parse();
-    // let input_file = args.input_file;
-    let input_file = "testdata/test.dcm".to_string();
+    // let input_path = args.input_path;
+    let input_path = "testdata/".to_string();
+
     let mut terminal = ratatui::init();
-    let app_result = App::new(&input_file)?.run(&mut terminal);
+    let app_result = App::new(&input_path)?.run(&mut terminal);
     ratatui::restore();
     match app_result {
         Ok(()) => Ok(()),
