@@ -99,6 +99,8 @@ impl<'a> App<'a> {
                 KeyCode::Char('E') => self.open_all(),
                 KeyCode::Char('C') => self.close_all(),
                 KeyCode::Enter | KeyCode::Char(' ') => self.toggle_node(),
+                KeyCode::Right | KeyCode::Char('l') => self.move_into_tree(),
+                KeyCode::Left | KeyCode::Char('h') => self.move_up_tree(),
                 _ => {}
             }
         }
@@ -190,6 +192,16 @@ impl<'a> App<'a> {
     fn close_all(&mut self) {
         self.handler_text = "shift + C -> collapse all".to_string();
         self.tree_state.close_all();
+    }
+
+    fn move_into_tree(&mut self) {
+        self.handler_text = "l/→ -> move into tree".to_string();
+        self.tree_state.key_right();
+    }
+
+    fn move_up_tree(&mut self) {
+        self.handler_text = "h/← -> move up tree".to_string();
+        self.tree_state.key_left();
     }
 
     fn render_help_overlay(&self, area: Rect, buf: &mut Buffer) {
@@ -365,6 +377,8 @@ pub const fn help_text() -> &'static str {
     r#"Navigation:
   k/↑/ctrl+p           - Move up
   j/↓/ctrl+n           - Move down
+  h/←                  - Move to parent or close node
+  l/→                  - Expand node or move to first child
   ctrl+u               - Move half page up
   ctrl+d               - Move half page down
   ctrl+f/page-down     - Move page down
