@@ -99,6 +99,10 @@ impl<'a> App<'a> {
                 KeyCode::Char('E') => self.open_all(),
                 KeyCode::Char('C') => self.close_all(),
                 KeyCode::Enter | KeyCode::Char(' ') => self.toggle_node(),
+                KeyCode::Char('H') => self.move_to_parent(),
+                KeyCode::Left if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_parent(),
+                KeyCode::Char('L') => self.move_to_next_child(),
+                KeyCode::Right if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_next_child(),
                 KeyCode::Right | KeyCode::Char('l') => self.move_into_tree(),
                 KeyCode::Left | KeyCode::Char('h') => self.move_up_tree(),
                 _ => {}
@@ -202,6 +206,47 @@ impl<'a> App<'a> {
     fn move_up_tree(&mut self) {
         self.handler_text = "h/← -> move up tree".to_string();
         self.tree_state.key_left();
+    }
+
+    fn move_to_parent(&mut self) {
+        self.handler_text = "shift+H/shift+← -> move to parent".to_string();
+
+        let selected = self.tree_state.selected();
+        if selected.len() <= 1 {
+            return; // Already at root or no selection
+        }
+
+        // Move to parent by removing the last element from the path
+        self.tree_state.select(selected[..selected.len() - 1].to_vec());
+    }
+
+    fn move_to_next_child(&mut self) {
+        self.handler_text = "shift+L/shift+→ -> move to next child".to_string();
+
+        let selected = self.tree_state.selected();
+        if selected.is_empty() {
+            return;
+        }
+
+        let current = selected.to_vec();
+        let flat_items = self.tree_state.flatten(&self.tree_items);
+
+        // Find current item and if it has children
+        if let Some(current_item) = flat_items.iter().find(|item| item.identifier == current)
+            && !current_item.item.children().is_empty()
+        {
+            // If current node is collapsed and has children, expand it first
+            if !self.tree_state.opened().contains(current.as_slice()) {
+                self.tree_state.open(current.clone());
+            }
+
+            // Move to first child after expanding
+            if let Some(first_child) = current_item.item.children().first() {
+                let mut child_path = current;
+                child_path.push(first_child.identifier().clone());
+                self.tree_state.select(child_path);
+            }
+        }
     }
 
     fn render_help_overlay(&self, area: Rect, buf: &mut Buffer) {
@@ -379,6 +424,8 @@ pub const fn help_text() -> &'static str {
   j/↓/ctrl+n           - Move down
   h/←                  - Move to parent or close node
   l/→                  - Expand node or move to first child
+  H/shift+←            - Move to parent
+  L/shift+→            - Move to next child (expand if collapsed)
   ctrl+u               - Move half page up
   ctrl+d               - Move half page down
   ctrl+f/page-down     - Move page down
