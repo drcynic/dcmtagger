@@ -96,6 +96,8 @@ impl<'a> App<'a> {
                 KeyCode::PageUp => self.move_page_up(),
                 KeyCode::Char('g') => self.move_to_first(),
                 KeyCode::Char('G') => self.move_to_last(),
+                KeyCode::Char('0') | KeyCode::Char('^') => self.move_to_first_sibling(),
+                KeyCode::Char('$') => self.move_to_last_sibling(),
                 KeyCode::Char('E') => self.open_all(),
                 KeyCode::Char('C') => self.close_all(),
                 KeyCode::Enter | KeyCode::Char(' ') => self.toggle_node(),
@@ -245,6 +247,54 @@ impl<'a> App<'a> {
                 let mut child_path = current;
                 child_path.push(first_child.identifier().clone());
                 self.tree_state.select(child_path);
+            }
+        }
+    }
+
+    fn move_to_first_sibling(&mut self) {
+        self.handler_text = "0/^ -> move to first sibling".to_string();
+
+        let selected = self.tree_state.selected();
+        if selected.len() <= 1 {
+            // At root level, move to first item
+            self.tree_state.select_first();
+            return;
+        }
+
+        // Get parent path
+        let parent_path = &selected[..selected.len() - 1];
+        let flat_items = self.tree_state.flatten(&self.tree_items);
+
+        // Find parent item
+        if let Some(parent_item) = flat_items.iter().find(|item| item.identifier == parent_path) {
+            if let Some(first_child) = parent_item.item.children().first() {
+                let mut first_sibling_path = parent_path.to_vec();
+                first_sibling_path.push(first_child.identifier().clone());
+                self.tree_state.select(first_sibling_path);
+            }
+        }
+    }
+
+    fn move_to_last_sibling(&mut self) {
+        self.handler_text = "$ -> move to last sibling".to_string();
+
+        let selected = self.tree_state.selected();
+        if selected.len() <= 1 {
+            // At root level, move to last item
+            self.tree_state.select_last();
+            return;
+        }
+
+        // Get parent path
+        let parent_path = &selected[..selected.len() - 1];
+        let flat_items = self.tree_state.flatten(&self.tree_items);
+
+        // Find parent item
+        if let Some(parent_item) = flat_items.iter().find(|item| item.identifier == parent_path) {
+            if let Some(last_child) = parent_item.item.children().last() {
+                let mut last_sibling_path = parent_path.to_vec();
+                last_sibling_path.push(last_child.identifier().clone());
+                self.tree_state.select(last_sibling_path);
             }
         }
     }
@@ -432,6 +482,8 @@ pub const fn help_text() -> &'static str {
   ctrl+b/page-up       - Move page up
   g                    - Move to first element
   G                    - Move to last element
+  0/^                  - Move to first sibling
+  $                    - Move to last sibling
   Enter/Space          - Toggle expand/collapse
   E                    - Expand all nodes
   C                    - Collapse all nodes
