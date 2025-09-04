@@ -98,6 +98,8 @@ impl<'a> App<'a> {
                 KeyCode::Char('G') => self.move_to_last(),
                 KeyCode::Char('0') | KeyCode::Char('^') => self.move_to_first_sibling(),
                 KeyCode::Char('$') => self.move_to_last_sibling(),
+                KeyCode::Char('c') => self.collapse_siblings(),
+                KeyCode::Char('e') => self.expand_siblings(),
                 KeyCode::Char('E') => self.open_all(),
                 KeyCode::Char('C') => self.close_all(),
                 KeyCode::Enter | KeyCode::Char(' ') => self.toggle_node(),
@@ -299,6 +301,80 @@ impl<'a> App<'a> {
         }
     }
 
+    fn collapse_siblings(&mut self) {
+        self.handler_text = "c -> collapse current node and siblings".to_string();
+
+        let selected = self.tree_state.selected();
+        if selected.is_empty() {
+            return;
+        }
+
+        if selected.len() == 1 {
+            // At root level, collapse all root items
+            for item in &self.tree_items {
+                self.tree_state.close(&[item.identifier().clone()]);
+            }
+        } else {
+            // Find parent and collapse all its children (siblings)
+            let parent_path = &selected[..selected.len() - 1];
+            let flat_items = self.tree_state.flatten(&self.tree_items);
+
+            if let Some(parent_item) = flat_items.iter().find(|item| item.identifier == parent_path) {
+                let children_to_close: Vec<_> = parent_item
+                    .item
+                    .children()
+                    .iter()
+                    .map(|child| {
+                        let mut child_path = parent_path.to_vec();
+                        child_path.push(child.identifier().clone());
+                        child_path
+                    })
+                    .collect();
+
+                for child_path in children_to_close {
+                    self.tree_state.close(&child_path);
+                }
+            }
+        }
+    }
+
+    fn expand_siblings(&mut self) {
+        self.handler_text = "e -> expand current node and siblings".to_string();
+
+        let selected = self.tree_state.selected();
+        if selected.is_empty() {
+            return;
+        }
+
+        if selected.len() == 1 {
+            // At root level, expand all root items
+            for item in &self.tree_items {
+                self.tree_state.open(vec![item.identifier().clone()]);
+            }
+        } else {
+            // Find parent and expand all its children (siblings)
+            let parent_path = &selected[..selected.len() - 1];
+            let flat_items = self.tree_state.flatten(&self.tree_items);
+
+            if let Some(parent_item) = flat_items.iter().find(|item| item.identifier == parent_path) {
+                let children_to_open: Vec<_> = parent_item
+                    .item
+                    .children()
+                    .iter()
+                    .map(|child| {
+                        let mut child_path = parent_path.to_vec();
+                        child_path.push(child.identifier().clone());
+                        child_path
+                    })
+                    .collect();
+
+                for child_path in children_to_open {
+                    self.tree_state.open(child_path);
+                }
+            }
+        }
+    }
+
     fn render_help_overlay(&self, area: Rect, buf: &mut Buffer) {
         // Calculate centered popup area (roughly 60% width, 70% height)
         let popup_width = (area.width as f32 * 0.6) as u16;
@@ -485,6 +561,8 @@ pub const fn help_text() -> &'static str {
   0/^                  - Move to first sibling
   $                    - Move to last sibling
   Enter/Space          - Toggle expand/collapse
+  c                    - Collapse current node and siblings
+  e                    - Expand current node and siblings
   E                    - Expand all nodes
   C                    - Collapse all nodes
   ?                    - Show help
