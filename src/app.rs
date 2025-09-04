@@ -255,35 +255,23 @@ impl<'a> App<'a> {
 
     fn move_to_first_sibling(&mut self) {
         self.handler_text = "0/^ -> move to first sibling".to_string();
-
-        let selected = self.tree_state.selected();
-        if selected.len() <= 1 {
-            // At root level, move to first item
-            self.tree_state.select_first();
-            return;
-        }
-
-        // Get parent path
-        let parent_path = &selected[..selected.len() - 1];
-        let flat_items = self.tree_state.flatten(&self.tree_items);
-
-        // Find parent item
-        if let Some(parent_item) = flat_items.iter().find(|item| item.identifier == parent_path)
-            && let Some(first_child) = parent_item.item.children().first()
-        {
-            let mut first_sibling_path = parent_path.to_vec();
-            first_sibling_path.push(first_child.identifier().clone());
-            self.tree_state.select(first_sibling_path);
-        }
+        self.move_to_sibling(true);
     }
 
     fn move_to_last_sibling(&mut self) {
         self.handler_text = "$ -> move to last sibling".to_string();
+        self.move_to_sibling(false);
+    }
 
+    fn move_to_sibling(&mut self, is_first: bool) {
         let selected = self.tree_state.selected();
         if selected.len() <= 1 {
-            // At root level, move to last item
-            self.tree_state.select_last();
+            // At root level, move to first or last item
+            if is_first {
+                self.tree_state.select_first();
+            } else {
+                self.tree_state.select_last();
+            }
             return;
         }
 
@@ -292,12 +280,18 @@ impl<'a> App<'a> {
         let flat_items = self.tree_state.flatten(&self.tree_items);
 
         // Find parent item
-        if let Some(parent_item) = flat_items.iter().find(|item| item.identifier == parent_path)
-            && let Some(last_child) = parent_item.item.children().last()
-        {
-            let mut last_sibling_path = parent_path.to_vec();
-            last_sibling_path.push(last_child.identifier().clone());
-            self.tree_state.select(last_sibling_path);
+        if let Some(parent_item) = flat_items.iter().find(|item| item.identifier == parent_path) {
+            let target_child = if is_first {
+                parent_item.item.children().first()
+            } else {
+                parent_item.item.children().last()
+            };
+
+            if let Some(target_child) = target_child {
+                let mut target_sibling_path = parent_path.to_vec();
+                target_sibling_path.push(target_child.identifier().clone());
+                self.tree_state.select(target_sibling_path);
+            }
         }
     }
 
