@@ -303,61 +303,43 @@ impl<'a> App<'a> {
 
     fn collapse_siblings(&mut self) {
         self.handler_text = "c -> collapse current node and siblings".to_string();
-
-        let selected = self.tree_state.selected();
-        if selected.is_empty() {
-            return;
-        }
-
-        if selected.len() == 1 {
-            // At root level, collapse all root items
-            for item in &self.tree_items {
-                self.tree_state.close(&[item.identifier().clone()]);
+        self.apply_on_siblings(|tree_state, path| {
+            if path.len() == 1 {
+                tree_state.close(&[path[0].clone()]);
+            } else {
+                tree_state.close(&path);
             }
-        } else {
-            // Find parent and collapse all its children (siblings)
-            let parent_path = &selected[..selected.len() - 1];
-            let flat_items = self.tree_state.flatten(&self.tree_items);
-
-            if let Some(parent_item) = flat_items.iter().find(|item| item.identifier == parent_path) {
-                let children_to_close: Vec<_> = parent_item
-                    .item
-                    .children()
-                    .iter()
-                    .map(|child| {
-                        let mut child_path = parent_path.to_vec();
-                        child_path.push(child.identifier().clone());
-                        child_path
-                    })
-                    .collect();
-
-                for child_path in children_to_close {
-                    self.tree_state.close(&child_path);
-                }
-            }
-        }
+        });
     }
 
     fn expand_siblings(&mut self) {
         self.handler_text = "e -> expand current node and siblings".to_string();
+        self.apply_on_siblings(|tree_state, path| {
+            tree_state.open(path);
+        });
+    }
 
+    fn apply_on_siblings<F>(&mut self, mut operation: F)
+    where
+        F: FnMut(&mut TreeState<String>, Vec<String>),
+    {
         let selected = self.tree_state.selected();
         if selected.is_empty() {
             return;
         }
 
         if selected.len() == 1 {
-            // At root level, expand all root items
+            // At root level, operate on all root items
             for item in &self.tree_items {
-                self.tree_state.open(vec![item.identifier().clone()]);
+                operation(&mut self.tree_state, vec![item.identifier().clone()]);
             }
         } else {
-            // Find parent and expand all its children (siblings)
+            // Find parent and operate on all its children (siblings)
             let parent_path = &selected[..selected.len() - 1];
             let flat_items = self.tree_state.flatten(&self.tree_items);
 
             if let Some(parent_item) = flat_items.iter().find(|item| item.identifier == parent_path) {
-                let children_to_open: Vec<_> = parent_item
+                let children_paths: Vec<_> = parent_item
                     .item
                     .children()
                     .iter()
@@ -368,8 +350,8 @@ impl<'a> App<'a> {
                     })
                     .collect();
 
-                for child_path in children_to_open {
-                    self.tree_state.open(child_path);
+                for child_path in children_paths {
+                    operation(&mut self.tree_state, child_path);
                 }
             }
         }
