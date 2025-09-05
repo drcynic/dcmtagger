@@ -31,12 +31,15 @@ impl<'a> App<'a> {
         let dicom_input = process_dicom_input(input_path)?;
         let tree_items = build_tree_items(&dicom_input);
         let mut tree_state = TreeState::default();
-        tree_state.select_first();
+
+        let _ = tree_state.select(vec![tree_items[0].identifier().clone()]);
+        let handler_text = format!("{:?}", &tree_state.selected());
 
         Ok(App {
             input_path,
             tree_items,
             tree_state,
+            handler_text,
             ..Default::default()
         })
     }
@@ -100,8 +103,8 @@ impl<'a> App<'a> {
                 KeyCode::Char('$') => self.move_to_last_sibling(),
                 KeyCode::Char('c') => self.collapse_siblings(),
                 KeyCode::Char('e') => self.expand_siblings(),
-                KeyCode::Char('E') => self.open_all(),
-                KeyCode::Char('C') => self.close_all(),
+                KeyCode::Char('E') => self.expand_current_recursive(),
+                KeyCode::Char('C') => self.collapse_current_recursive(),
                 KeyCode::Enter | KeyCode::Char(' ') => self.toggle_node(),
                 KeyCode::Char('H') => self.move_to_parent(),
                 KeyCode::Left if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_parent(),
@@ -190,13 +193,111 @@ impl<'a> App<'a> {
         self.tree_state.toggle_selected();
     }
 
+    fn expand_current_recursive(&mut self) {
+        self.handler_text = "shift + E -> expand current node recursively".to_string();
+        let selected = self.tree_state.selected().to_vec();
+        self.handler_text = format!("selected: {:?}", &selected);
+        if selected.is_empty() {
+            return;
+        }
+
+        self.expand_node_recursive(selected);
+    }
+
+    fn collapse_current_recursive(&mut self) {
+        self.handler_text = "shift + C -> collapse current node recursively".to_string();
+        let selected = self.tree_state.selected().to_vec();
+        self.handler_text = format!("selected: {:?}", &selected);
+
+        if selected.len() == 1 {
+            self.tree_state.close_all();
+        } else if selected.len() > 1 {
+            self.collapse_node_recursive(selected);
+        }
+    }
+
+    fn expand_node_recursive(&mut self, node_path: Vec<String>) {
+        let all_paths = self.collect_all_descendant_paths(node_path);
+        for path in all_paths {
+            self.tree_state.open(path);
+        }
+    }
+
+    fn collapse_node_recursive(&mut self, node_path: Vec<String>) {
+        let all_paths = self.collect_all_descendant_paths(node_path);
+        for path in all_paths.into_iter().rev() {
+            self.tree_state.close(&path);
+        }
+    }
+
+    fn collect_all_descendant_paths(&self, node_path: Vec<String>) -> Vec<Vec<String>> {
+        let mut all_paths = Vec::new();
+        self.collect_paths_from_tree(&self.tree_items, &node_path, &mut all_paths);
+        all_paths
+    }
+
+    fn collect_paths_from_tree(&self, tree_items: &[TreeItem<String>], target_path: &[String], all_paths: &mut Vec<Vec<String>>) {
+        for item in tree_items {
+            if item.identifier() == &target_path[0] {
+                if target_path.len() == 1 {
+                    // Found the target item, collect it and all descendants
+                    let path = vec![item.identifier().clone()];
+                    all_paths.push(path.clone());
+                    Self::collect_children_paths(item, &path, all_paths);
+                } else {
+                    // Continue searching in children
+                    Self::collect_paths_from_children(item.children(), &target_path[1..], &[target_path[0].clone()], all_paths);
+                }
+                break;
+            }
+        }
+    }
+
+    fn collect_paths_from_children(
+        children: &[TreeItem<String>],
+        target_path: &[String],
+        current_path: &[String],
+        all_paths: &mut Vec<Vec<String>>,
+    ) {
+        for child in children {
+            if child.identifier() == &target_path[0] {
+                let mut child_path = current_path.to_vec();
+                child_path.push(child.identifier().clone());
+
+                if target_path.len() == 1 {
+                    // Found the target, collect it and all descendants
+                    all_paths.push(child_path.clone());
+                    Self::collect_children_paths(child, &child_path, all_paths);
+                } else {
+                    // Continue searching deeper
+                    Self::collect_paths_from_children(child.children(), &target_path[1..], &child_path, all_paths);
+                }
+                break;
+            }
+        }
+    }
+
+    fn collect_children_paths(item: &TreeItem<String>, item_path: &[String], all_paths: &mut Vec<Vec<String>>) {
+        for child in item.children() {
+            let mut child_path = item_path.to_vec();
+            child_path.push(child.identifier().clone());
+            all_paths.push(child_path.clone());
+            Self::collect_children_paths(child, &child_path, all_paths);
+        }
+    }
+
+    #[allow(dead_code)]
     fn open_all(&mut self) {
         self.handler_text = "shift + E -> expand all".to_string();
-        self.tree_state.flatten(&self.tree_items).iter().for_each(|node| {
+        let flat = self.tree_state.flatten(&self.tree_items);
+        self.handler_text = format!("flat size: {}", flat.len());
+
+        flat.iter().for_each(|node| {
             self.tree_state.open(node.identifier.clone());
         });
     }
 
+    #[allow(dead_code)]
     fn close_all(&mut self) {
         self.handler_text = "shift + C -> collapse all".to_string();
         self.tree_state.close_all();
@@ -539,8 +640,8 @@ pub const fn help_text() -> &'static str {
   Enter/Space          - Toggle expand/collapse
   c                    - Collapse current node and siblings
   e                    - Expand current node and siblings
-  E                    - Expand all nodes
-  C                    - Collapse all nodes
+  E                    - Expand current node recursively
+  C                    - Collapse current node recursively
   ?                    - Show help
   q/Esc                - Quit
 "#
