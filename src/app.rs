@@ -87,6 +87,10 @@ impl<'a> App<'a> {
             match key_event.code {
                 KeyCode::Char('q') | KeyCode::Esc => self.exit(),
                 KeyCode::Char('?') => self.show_help(),
+                KeyCode::Up if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_prev_sibling(),
+                KeyCode::Char('K') => self.move_to_prev_sibling(),
+                KeyCode::Down if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_next_sibling(),
+                KeyCode::Char('J') => self.move_to_next_sibling(),
                 KeyCode::Up | KeyCode::Char('k') => self.move_up(),
                 KeyCode::Char('p') if key_event.modifiers.contains(KeyModifiers::CONTROL) => self.move_up(),
                 KeyCode::Down | KeyCode::Char('j') => self.move_down(),
@@ -284,6 +288,68 @@ impl<'a> App<'a> {
             all_paths.push(child_path.clone());
             Self::collect_children_paths(child, &child_path, all_paths);
         }
+    }
+
+    fn move_to_prev_sibling(&mut self) {
+        self.handler_text = "K/shift+↑ -> move to previous sibling".to_string();
+        self.move_to_sibling_by_direction(true);
+    }
+
+    fn move_to_next_sibling(&mut self) {
+        self.handler_text = "J/shift+↓ -> move to next sibling".to_string();
+        self.move_to_sibling_by_direction(false);
+    }
+
+    fn move_to_sibling_by_direction(&mut self, move_up: bool) {
+        let selected = self.tree_state.selected();
+        if selected.len() <= 1 {
+            return;
+        }
+
+        // Find siblings at current level
+        let parent_path = &selected[..selected.len() - 1];
+        let current_id = &selected[selected.len() - 1];
+
+        // Find parent item using tree traversal
+        if let Some(siblings) = self.find_siblings_at_path(parent_path) {
+            let current_idx = siblings.iter().position(|item| item.identifier() == current_id);
+
+            if let Some(current_idx) = current_idx {
+                let target_idx = if move_up {
+                    if current_idx > 0 {
+                        current_idx - 1
+                    } else {
+                        return;
+                    }
+                } else if current_idx + 1 < siblings.len() {
+                    current_idx + 1
+                } else {
+                    return;
+                };
+
+                let mut target_path = parent_path.to_vec();
+                target_path.push(siblings[target_idx].identifier().clone());
+                self.tree_state.select(target_path);
+            }
+        }
+    }
+
+    fn find_siblings_at_path(&self, path: &[String]) -> Option<&[TreeItem<'_, String>]> {
+        if path.is_empty() {
+            return Some(self.tree_items.as_slice());
+        }
+
+        let mut current_items: &[TreeItem<String>] = self.tree_items.as_slice();
+
+        for path_segment in path {
+            if let Some(item) = current_items.iter().find(|item| item.identifier() == path_segment) {
+                current_items = item.children();
+            } else {
+                return None;
+            }
+        }
+
+        Some(current_items)
     }
 
     #[allow(dead_code)]
@@ -629,6 +695,8 @@ pub const fn help_text() -> &'static str {
   l/→                  - Expand node or move to first child
   H/shift+←            - Move to parent
   L/shift+→            - Move to next child (expand if collapsed)
+  J/shift+↓            - Move to next sibling (same level)
+  K/shift+↑            - Move to previous sibling (same level)
   ctrl+u               - Move half page up
   ctrl+d               - Move half page down
   ctrl+f/page-down     - Move page down
