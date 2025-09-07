@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, path::Path};
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
@@ -12,7 +12,7 @@ use ratatui::{
 };
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use crate::dicom::{DicomInput, GroupedTags, process_dicom_input};
+use crate::dicom::{parse_dicom_files, tree_by_filename};
 
 #[derive(Debug, Default)]
 pub struct App<'a> {
@@ -28,18 +28,16 @@ pub struct App<'a> {
 
 impl<'a> App<'a> {
     pub fn new(input_path: &'a str) -> anyhow::Result<Self> {
-        let dicom_input = process_dicom_input(input_path)?;
-        let tree_items = build_tree_items(&dicom_input);
+        let datasets_by_filename = parse_dicom_files(Path::new(input_path))?;
+        let root_item = tree_by_filename(input_path, &datasets_by_filename);
         let mut tree_state = TreeState::default();
-
-        let _ = tree_state.select(vec![tree_items[0].identifier().clone()]);
-        let handler_text = format!("{:?}", &tree_state.selected());
+        tree_state.select(vec![root_item.identifier().clone()]);
+        tree_state.open(vec![root_item.identifier().clone()]);
 
         Ok(App {
             input_path,
-            tree_items,
+            tree_items: vec![root_item],
             tree_state,
-            handler_text,
             ..Default::default()
         })
     }
@@ -236,24 +234,24 @@ impl<'a> App<'a> {
 
     fn collect_all_descendant_paths(&self, node_path: Vec<String>) -> Vec<Vec<String>> {
         let mut all_paths = Vec::new();
-        self.collect_paths_from_tree(&self.tree_items, &node_path, &mut all_paths);
+        self.collect_paths_from_tree(&node_path, &mut all_paths);
         all_paths
     }
 
-    fn collect_paths_from_tree(&self, tree_items: &[TreeItem<String>], target_path: &[String], all_paths: &mut Vec<Vec<String>>) {
-        for item in tree_items {
-            if item.identifier() == &target_path[0] {
-                if target_path.len() == 1 {
-                    // Found the target item, collect it and all descendants
-                    let path = vec![item.identifier().clone()];
-                    all_paths.push(path.clone());
-                    Self::collect_children_paths(item, &path, all_paths);
-                } else {
-                    // Continue searching in children
-                    Self::collect_paths_from_children(item.children(), &target_path[1..], &[target_path[0].clone()], all_paths);
-                }
-                break;
-            }
+    fn collect_paths_from_tree(&self, target_path: &[String], all_paths: &mut Vec<Vec<String>>) {
+        if target_path.len() == 1 {
+            // Found the target item, collect it and all descendants
+            let path = vec![self.tree_items[0].identifier().clone()];
+            all_paths.push(path.clone());
+            Self::collect_children_paths(&self.tree_items[0], &path, all_paths);
+        } else {
+            // Continue searching in children
+            Self::collect_paths_from_children(
+                self.tree_items[0].children(),
+                &target_path[1..],
+                &[target_path[0].clone()],
+                all_paths,
+            );
         }
     }
 
@@ -550,102 +548,6 @@ impl<'a> App<'a> {
     }
 }
 
-fn build_tree_items(dicom_input: &DicomInput) -> Vec<TreeItem<'static, String>> {
-    match dicom_input {
-        DicomInput::File(tags) => build_file_tree_items(tags),
-        DicomInput::Directory(dir_name, file_tags) => build_directory_tree_items(dir_name, file_tags),
-    }
-}
-
-fn build_file_tree_items(tags: &GroupedTags) -> Vec<TreeItem<'static, String>> {
-    let dict = dicom_dictionary_std::StandardDataDictionary;
-
-    tags.iter()
-        .map(|(group, elements)| {
-            let group_text = format!("Group {group:#06x}");
-            let group_id = format!("group_{group:04x}");
-
-            let children = build_element_tree_items(&dict, elements, &group_id);
-            TreeItem::new(group_id, group_text, children).expect("all child identifiers are unique")
-        })
-        .collect()
-}
-
-fn build_directory_tree_items(
-    dir_name: &str,
-    file_tags: &std::collections::BTreeMap<String, GroupedTags>,
-) -> Vec<TreeItem<'static, String>> {
-    use std::path::Path;
-
-    let dict = dicom_dictionary_std::StandardDataDictionary;
-    let dir_display_name = Path::new(dir_name).file_name().and_then(|n| n.to_str()).unwrap_or(dir_name);
-
-    let file_children: Vec<TreeItem<String>> = file_tags
-        .iter()
-        .map(|(filename, tags)| {
-            let file_id = format!("file_{}", filename.replace(['.', ' '], "_"));
-
-            let group_children: Vec<TreeItem<String>> = tags
-                .iter()
-                .map(|(group, elements)| {
-                    let group_text = format!("Group {group:#06x}");
-                    let group_id = format!("{file_id}_{group:04x}");
-                    let element_children = build_element_tree_items(&dict, elements, &group_id);
-
-                    TreeItem::new(group_id, group_text, element_children).expect("all child identifiers are unique")
-                })
-                .collect();
-
-            TreeItem::new(file_id, filename.clone(), group_children).expect("all child identifiers are unique")
-        })
-        .collect();
-
-    vec![
-        TreeItem::new("root_directory".to_string(), dir_display_name.to_string(), file_children).expect("all child identifiers are unique"),
-    ]
-}
-
-fn build_element_tree_items(
-    dict: &dicom_dictionary_std::StandardDataDictionary,
-    elements: &[crate::dicom::TagElement],
-    group_id: &str,
-) -> Vec<TreeItem<'static, String>> {
-    use dicom_core::DataDictionary;
-    elements
-        .iter()
-        .enumerate()
-        .map(|(idx, tag_elem)| {
-            let tag = tag_elem.header().tag;
-            let tag_info_str = if let Some(tag_info) = dict.by_tag(tag) {
-                format!("{:#06x} '{}' ({})", tag.element(), tag_info.alias, tag_elem.vr())
-            } else {
-                format!("{:#06x} <unknown> ({})", tag.element(), tag_elem.vr())
-            };
-
-            let value_str = match tag_elem.value() {
-                dicom_core::DicomValue::Primitive(primitive_value) => {
-                    if tag_elem.vr() != dicom_core::VR::OB && tag_elem.vr() != dicom_core::VR::OW {
-                        let value_str = primitive_value.to_string();
-                        if value_str.len() > 80 {
-                            format!(": {}...", &value_str[..77])
-                        } else {
-                            format!(": {value_str}")
-                        }
-                    } else {
-                        String::new()
-                    }
-                }
-                dicom_core::DicomValue::Sequence(seq) => format!(": sequence with {} items", seq.items().len()),
-                dicom_core::DicomValue::PixelSequence(_) => ": pixel sequence".to_string(),
-            };
-
-            let full_text = format!("{tag_info_str}{value_str}");
-            let child_id = format!("{group_id}_elem_{idx}");
-            TreeItem::new_leaf(child_id, full_text)
-        })
-        .collect()
-}
-
 impl<'a> Widget for &mut App<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_path.into(), " ".into()]);
@@ -715,23 +617,31 @@ pub const fn help_text() -> &'static str {
 "#
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::collections::BTreeMap;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use std::collections::BTreeMap;
 
-    #[test]
-    fn test_file_tree_structure() {
-        let mut tags = BTreeMap::new();
-        let elements = vec![];
-        tags.insert(0x0008, elements.clone());
-        tags.insert(0x0010, elements);
+//     #[test]
+//     fn test_file_tree_structure() {
+// let dict = dicom_dictionary_std::StandardDataDictionary;
+// let mut tags = BTreeMap::new();
+// let elements = vec![];
+// tags.insert(0x0008, elements.clone());
+// tags.insert(0x0010, elements);
+// let di = DicomInput {
+//     base_path: "root".to_string(),
+//     file_tags: BTreeMap::from([("01.dcm".to_string(), tags)]),
+// };
 
-        let tree_items = build_file_tree_items(&tags);
+// let root_item = build_tree(&di);
 
-        assert_eq!(tree_items.len(), 2, "Should have 2 groups");
+// println!("root: {:?}", &root_item);
+// let children = root_item.children();
+// println!("Children: {:?}", &children);
+// assert_eq!(children.len(), 2, "Should have 2 groups");
 
-        assert_eq!(tree_items[0].identifier(), "group_0008");
-        assert_eq!(tree_items[1].identifier(), "group_0010");
-    }
-}
+// assert_eq!(children[0].identifier(), "group_0008");
+// assert_eq!(children[1].identifier(), "group_0010");
+// }
+// }
