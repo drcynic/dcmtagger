@@ -12,7 +12,7 @@ use ratatui::{
 };
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use crate::dicom::{parse_dicom_files, tree_by_filename};
+use crate::dicom::{parse_dicom_files, tree_sorted_by_filename};
 
 #[derive(Debug, Default)]
 pub struct App<'a> {
@@ -29,15 +29,18 @@ pub struct App<'a> {
 impl<'a> App<'a> {
     pub fn new(input_path: &'a str) -> anyhow::Result<Self> {
         let datasets_by_filename = parse_dicom_files(Path::new(input_path))?;
-        let root_item = tree_by_filename(input_path, &datasets_by_filename);
+        let root_item = tree_sorted_by_filename(input_path, &datasets_by_filename);
+        // let root_item = tree_sorted_by_tag(input_path, &datasets_by_filename, 0);
         let mut tree_state = TreeState::default();
         tree_state.select(vec![root_item.identifier().clone()]);
         tree_state.open(vec![root_item.identifier().clone()]);
+        let handler_text = format!("{:?}", &root_item);
 
         Ok(App {
             input_path,
             tree_items: vec![root_item],
             tree_state,
+            handler_text,
             ..Default::default()
         })
     }

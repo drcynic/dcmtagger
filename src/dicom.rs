@@ -1,7 +1,9 @@
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::{fs, io};
 
 use anyhow::Result;
+use dicom_core::Tag;
 use dicom_object::InMemDicomObject;
 use tui_tree_widget::TreeItem;
 
@@ -44,7 +46,7 @@ pub fn parse_dicom_files(path: &Path) -> Result<Vec<DatasetEntry>> {
     Ok(datasets_with_filename)
 }
 
-pub fn tree_by_filename(root_dir: &str, datasets_with_filename: &[DatasetEntry]) -> tui_tree_widget::TreeItem<'static, String> {
+pub fn tree_sorted_by_filename(root_dir: &str, datasets_with_filename: &[DatasetEntry]) -> tui_tree_widget::TreeItem<'static, String> {
     let mut root_node = TreeItem::new("root".to_string(), root_dir.to_string(), Vec::new()).expect("valid root");
 
     for entry in datasets_with_filename {
@@ -89,6 +91,73 @@ pub fn tree_by_filename(root_dir: &str, datasets_with_filename: &[DatasetEntry])
     root_node
 }
 
+#[allow(dead_code)]
+pub fn tree_sorted_by_tag(
+    root_dir: &str,
+    datasets_with_filename: &[DatasetEntry],
+    min_diff: usize,
+) -> tui_tree_widget::TreeItem<'static, String> {
+    if datasets_with_filename.len() == 1 {
+        return tree_sorted_by_filename(root_dir, datasets_with_filename);
+    }
+
+    let (values_by_tag, value_lengths_by_tag) = collect_values_by_tag(datasets_with_filename);
+
+    let mut root_node = TreeItem::new("root".to_string(), root_dir.to_string(), Vec::new()).expect("valid root");
+    let mut group_nodes_by_tag_group: BTreeMap<u16, TreeItem<'_, String>> = BTreeMap::new();
+    let mut tag_nodes_by_tag: BTreeMap<Tag, TreeItem<'_, String>> = BTreeMap::new();
+
+    for entry in datasets_with_filename {
+        let file_id = format!("file_{}", entry.filename.replace(['.', ' '], "_"));
+        for elem in entry.dataset.iter() {
+            let tag = elem.header().tag;
+            group_nodes_by_tag_group.entry(tag.group()).or_insert_with(|| {
+                let group_tag_text = format!("{:04x}/", tag.group());
+                TreeItem::new(group_tag_text.clone(), group_tag_text, Vec::new()).expect("valid node")
+            });
+            let values_by_tag = &values_by_tag[&tag];
+            if values_by_tag.len() > min_diff {
+                let tag_node: &mut TreeItem<'_, std::string::String> = match tag_nodes_by_tag.get_mut(&tag) {
+                    Some(node) => node,
+                    None => {
+                        let tag_name = get_tag_name(elem);
+                        let value_lengths = &value_lengths_by_tag[&tag];
+                        let value_lengths_text = if value_lengths.len() == 1 {
+                            format!(", {}", elem.header().len)
+                        } else {
+                            String::new()
+                        };
+                        let tag_id = format!("{:04x}_{}", tag.group(), tag.element());
+                        let tag_text = format!("{:04x} {} ({}{})", tag.element(), tag_name, elem.vr(), value_lengths_text);
+                        let tag_node = TreeItem::new(tag_id, tag_text, Vec::new()).expect("valid node");
+                        tag_nodes_by_tag.insert(tag, tag_node);
+                        tag_nodes_by_tag.get_mut(&tag).unwrap()
+                    }
+                };
+                let value = get_value_string(elem);
+                let element_id = format!("{}_{:04x}_{}", &file_id, tag.group(), tag.element(),);
+                let element_text = format!("{} {} - {}", value, elem.header().len, &entry.filename);
+                let element_node = TreeItem::new(element_id, element_text, Vec::new()).expect("valid node");
+                tag_node.add_child(element_node.clone()).expect("valid element node");
+            }
+        }
+    }
+
+    for (tag, tag_node) in &tag_nodes_by_tag {
+        group_nodes_by_tag_group
+            .get_mut(&tag.group())
+            .unwrap()
+            .add_child(tag_node.clone())
+            .expect("valid tag node");
+    }
+
+    for group_node in group_nodes_by_tag_group.values() {
+        root_node.add_child(group_node.clone()).expect("valid group node");
+    }
+
+    root_node
+}
+
 fn get_tag_name(elem: &crate::dicom::TagElement) -> String {
     use dicom_core::DataDictionary;
     let dict = dicom_dictionary_std::StandardDataDictionary;
@@ -118,4 +187,30 @@ fn get_value_string(elem: &crate::dicom::TagElement) -> String {
         }
         dicom_core::DicomValue::PixelSequence(_) => "pixel sequence".to_string(),
     }
+}
+
+pub fn collect_values_by_tag(
+    datasets_with_filename: &[DatasetEntry],
+) -> (
+    std::collections::HashMap<dicom_core::Tag, std::collections::HashSet<String>>,
+    std::collections::HashMap<dicom_core::Tag, std::collections::HashSet<u32>>,
+) {
+    use std::collections::{HashMap, HashSet};
+
+    let mut values_by_tag: HashMap<dicom_core::Tag, HashSet<String>> = HashMap::new();
+    let mut value_lengths_by_tag: HashMap<dicom_core::Tag, HashSet<u32>> = HashMap::new();
+
+    for entry in datasets_with_filename {
+        for elem in entry.dataset.iter() {
+            let tag = elem.header().tag;
+
+            let values_set = values_by_tag.entry(tag).or_default();
+            values_set.insert(get_value_string(elem));
+
+            let lengths_set = value_lengths_by_tag.entry(tag).or_default();
+            lengths_set.insert(elem.header().len.0);
+        }
+    }
+
+    (values_by_tag, value_lengths_by_tag)
 }
