@@ -618,6 +618,11 @@ impl<'a> Widget for &mut App<'a> {
 
 pub const fn help_text() -> &'static str {
     r#"Navigation:
+  ?                    - Show help
+  q/Esc                - Quit
+  1                    - Sort tree by filename
+  2                    - Sort tree by tags
+  3                    - Sort tree by tags, only showing tags with different values
   k/↑/ctrl+p           - Move up
   j/↓/ctrl+n           - Move down
   h/←                  - Move to parent or close node
@@ -639,8 +644,6 @@ pub const fn help_text() -> &'static str {
   e                    - Expand current node and siblings
   E                    - Expand current node recursively
   C                    - Collapse current node recursively
-  ?                    - Show help
-  q/Esc                - Quit
 "#
 }
 
