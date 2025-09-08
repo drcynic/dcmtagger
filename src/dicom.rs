@@ -91,7 +91,6 @@ pub fn tree_sorted_by_filename(root_dir: &str, datasets_with_filename: &[Dataset
     root_node
 }
 
-#[allow(dead_code)]
 pub fn tree_sorted_by_tag(
     root_dir: &str,
     datasets_with_filename: &[DatasetEntry],

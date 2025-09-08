@@ -12,7 +12,7 @@ use ratatui::{
 };
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use crate::dicom::{parse_dicom_files, tree_sorted_by_filename};
+use crate::dicom::{parse_dicom_files, tree_sorted_by_filename, tree_sorted_by_tag};
 
 #[derive(Debug, Default)]
 pub struct App<'a> {
@@ -30,17 +30,14 @@ impl<'a> App<'a> {
     pub fn new(input_path: &'a str) -> anyhow::Result<Self> {
         let datasets_by_filename = parse_dicom_files(Path::new(input_path))?;
         let root_item = tree_sorted_by_filename(input_path, &datasets_by_filename);
-        // let root_item = tree_sorted_by_tag(input_path, &datasets_by_filename, 0);
         let mut tree_state = TreeState::default();
         tree_state.select(vec![root_item.identifier().clone()]);
         tree_state.open(vec![root_item.identifier().clone()]);
-        let handler_text = format!("{:?}", &root_item);
 
         Ok(App {
             input_path,
             tree_items: vec![root_item],
             tree_state,
-            handler_text,
             ..Default::default()
         })
     }
@@ -86,6 +83,9 @@ impl<'a> App<'a> {
             }
         } else {
             match key_event.code {
+                KeyCode::Char('1') => self.sort_by_filename(),
+                KeyCode::Char('2') => self.sort_by_tag(0),
+                KeyCode::Char('3') => self.sort_by_tag(1),
                 KeyCode::Char('q') | KeyCode::Esc => self.exit(),
                 KeyCode::Char('?') => self.show_help(),
                 KeyCode::Up if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_prev_sibling(),
@@ -146,6 +146,30 @@ impl<'a> App<'a> {
         let max_scroll = help_lines.len().saturating_sub(3);
         if self.help_scroll_offset < max_scroll {
             self.help_scroll_offset += 1;
+        }
+    }
+
+    fn sort_by_filename(&mut self) {
+        let datasets_by_filename = parse_dicom_files(Path::new(self.input_path)).unwrap();
+        let root_item = tree_sorted_by_filename(self.input_path, &datasets_by_filename);
+        self.tree_state = TreeState::default();
+        self.tree_state.select(vec![root_item.identifier().clone()]);
+        self.tree_state.open(vec![root_item.identifier().clone()]);
+        self.tree_items = vec![root_item];
+        self.handler_text = "sorted by filename".to_string();
+    }
+
+    fn sort_by_tag(&mut self, min_diffs: usize) {
+        let datasets_by_filename = parse_dicom_files(Path::new(self.input_path)).unwrap();
+        let root_item = tree_sorted_by_tag(self.input_path, &datasets_by_filename, min_diffs);
+        self.tree_state = TreeState::default();
+        self.tree_state.select(vec![root_item.identifier().clone()]);
+        self.tree_state.open(vec![root_item.identifier().clone()]);
+        self.tree_items = vec![root_item];
+        if min_diffs == 0 {
+            self.handler_text = "sorted by tag".to_string();
+        } else {
+            self.handler_text = "sorted by tag, displaying only different tags".to_string();
         }
     }
 
