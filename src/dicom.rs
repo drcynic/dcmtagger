@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 use std::{fs, io};
 
@@ -100,7 +100,7 @@ pub fn tree_sorted_by_tag(
         return tree_sorted_by_filename(root_dir, datasets_with_filename);
     }
 
-    let (values_by_tag, value_lengths_by_tag) = collect_values_by_tag(datasets_with_filename);
+    let num_values_and_length_by_tag = num_distinct_values_and_lengths_by_tag(datasets_with_filename);
 
     let mut root_node = TreeItem::new("root".to_string(), root_dir.to_string(), Vec::new()).expect("valid root");
     let mut group_nodes_by_tag_group: BTreeMap<u16, TreeItem<'_, String>> = BTreeMap::new();
@@ -114,14 +114,13 @@ pub fn tree_sorted_by_tag(
                 let group_tag_text = format!("{:04x}/", tag.group());
                 TreeItem::new(group_tag_text.clone(), group_tag_text, Vec::new()).expect("valid node")
             });
-            let values_by_tag = &values_by_tag[&tag];
-            if values_by_tag.len() > min_diff {
+            let (num_values, num_lengths) = num_values_and_length_by_tag[&tag];
+            if num_values > min_diff {
                 let tag_node: &mut TreeItem<'_, std::string::String> = match tag_nodes_by_tag.get_mut(&tag) {
                     Some(node) => node,
                     None => {
                         let tag_name = get_tag_name(elem);
-                        let value_lengths = &value_lengths_by_tag[&tag];
-                        let value_lengths_text = if value_lengths.len() == 1 {
+                        let value_lengths_text = if num_lengths == 1 {
                             format!(", {}", elem.header().len)
                         } else {
                             String::new()
@@ -188,28 +187,21 @@ fn get_value_string(elem: &crate::dicom::TagElement) -> String {
     }
 }
 
-pub fn collect_values_by_tag(
-    datasets_with_filename: &[DatasetEntry],
-) -> (
-    std::collections::HashMap<dicom_core::Tag, std::collections::HashSet<String>>,
-    std::collections::HashMap<dicom_core::Tag, std::collections::HashSet<u32>>,
-) {
-    use std::collections::{HashMap, HashSet};
-
-    let mut values_by_tag: HashMap<dicom_core::Tag, HashSet<String>> = HashMap::new();
-    let mut value_lengths_by_tag: HashMap<dicom_core::Tag, HashSet<u32>> = HashMap::new();
+pub fn num_distinct_values_and_lengths_by_tag(datasets_with_filename: &[DatasetEntry]) -> HashMap<Tag, (usize, usize)> {
+    let mut values_by_tag: HashMap<Tag, (HashSet<String>, HashSet<u32>)> = HashMap::new();
 
     for entry in datasets_with_filename {
         for elem in entry.dataset.iter() {
             let tag = elem.header().tag;
 
             let values_set = values_by_tag.entry(tag).or_default();
-            values_set.insert(get_value_string(elem));
-
-            let lengths_set = value_lengths_by_tag.entry(tag).or_default();
-            lengths_set.insert(elem.header().len.0);
+            values_set.0.insert(get_value_string(elem));
+            values_set.1.insert(elem.header().len.0);
         }
     }
 
-    (values_by_tag, value_lengths_by_tag)
+    values_by_tag
+        .iter()
+        .map(|(&tag, (values, lengths))| (tag, (values.len(), lengths.len())))
+        .collect()
 }
