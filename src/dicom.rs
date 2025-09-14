@@ -214,3 +214,44 @@ pub fn num_distinct_values_and_lengths_by_tag(datasets_with_filename: &[DatasetE
         .map(|(&tag, (values, lengths))| (tag, (values.len(), lengths.len())))
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+    use std::time::Instant;
+
+    #[test]
+    fn test_tree_sorted_by_tag_timing() {
+        let test_path = Path::new("calib-phantom-s2-dvt");
+
+        // Skip test if path doesn't exist
+        if !test_path.exists() {
+            println!("Test path '{}' does not exist, skipping test", test_path.display());
+            return;
+        }
+
+        println!("Loading DICOM data from: {}", test_path.display());
+
+        // Measure DicomData creation time
+        let load_start = Instant::now();
+        let dicom_data = match DicomData::new(test_path) {
+            Ok(data) => data,
+            Err(e) => {
+                println!("Failed to load DICOM data: {}", e);
+                return;
+            }
+        };
+        let load_duration = load_start.elapsed();
+        println!("DicomData::new() execution time: {:?}", load_duration);
+        println!("Loaded {} datasets", dicom_data.datasets_with_filename.len());
+
+        // Measure tree_sorted_by_tag execution time
+        let tree_start = Instant::now();
+        let _tree = dicom_data.tree_sorted_by_tag(0);
+        let tree_duration = tree_start.elapsed();
+        println!("tree_sorted_by_tag() execution time: {:?}", tree_duration);
+
+        println!("Total execution time: {:?}", load_duration + tree_duration);
+    }
+}
