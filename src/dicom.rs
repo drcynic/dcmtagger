@@ -110,9 +110,9 @@ impl DicomData {
             return self.tree_sorted_by_filename();
         }
 
-        let mut root_node = TreeItem::new("root".to_string(), self.root_dir.display().to_string(), Vec::new()).expect("valid root");
         let mut group_nodes_by_tag_group: BTreeMap<u16, TreeItem<'_, String>> = BTreeMap::new();
-        let mut tag_nodes_by_tag: BTreeMap<Tag, TreeItem<'_, String>> = BTreeMap::new();
+        let mut tag_nodes_id_and_text_by_tag: BTreeMap<Tag, (String, String)> = BTreeMap::new();
+        let mut element_nodes_by_tag: BTreeMap<Tag, Vec<TreeItem<'_, String>>> = BTreeMap::new();
 
         for entry in &self.datasets_with_filename {
             let file_id = format!("file_{}", entry.filename.replace(['.', ' '], "_"));
@@ -124,44 +124,42 @@ impl DicomData {
                 });
                 let (num_values, num_lengths) = self.num_values_and_length_by_tag[&tag];
                 if num_values > min_diff {
-                    let tag_node: &mut TreeItem<'_, std::string::String> = match tag_nodes_by_tag.get_mut(&tag) {
-                        Some(node) => node,
-                        None => {
-                            let tag_name = get_tag_name(elem);
-                            let value_lengths_text = if num_lengths == 1 {
-                                format!(", {}", elem.header().len)
-                            } else {
-                                String::new()
-                            };
-                            let tag_id = format!("{:04x}_{}", tag.group(), tag.element());
-                            let tag_text = format!("{:04x} {} ({}{})", tag.element(), tag_name, elem.vr(), value_lengths_text);
-                            let tag_node = TreeItem::new(tag_id, tag_text, Vec::new()).expect("valid node");
-                            tag_nodes_by_tag.insert(tag, tag_node);
-                            tag_nodes_by_tag.get_mut(&tag).unwrap()
-                        }
-                    };
+                    tag_nodes_id_and_text_by_tag.entry(tag).or_insert_with(|| {
+                        let tag_name = get_tag_name(elem);
+                        let value_lengths_text = if num_lengths == 1 {
+                            format!(", {}", elem.header().len)
+                        } else {
+                            String::new()
+                        };
+                        let tag_id = format!("{:04x}_{}", tag.group(), tag.element());
+                        let tag_text = format!("{:04x} {} ({}{})", tag.element(), tag_name, elem.vr(), value_lengths_text);
+                        (tag_id, tag_text)
+                    });
                     let value = get_value_string(elem);
                     let element_id = format!("{}_{:04x}_{}", &file_id, tag.group(), tag.element(),);
                     let element_text = format!("{} {} - {}", value, elem.header().len, &entry.filename);
                     let element_node = TreeItem::new(element_id, element_text, Vec::new()).expect("valid node");
-                    tag_node.add_child(element_node.clone()).expect("valid element node");
+                    element_nodes_by_tag.entry(tag).or_default().push(element_node);
                 }
             }
         }
 
-        for (tag, tag_node) in &tag_nodes_by_tag {
+        for (tag, (id, text)) in tag_nodes_id_and_text_by_tag {
+            let elements = element_nodes_by_tag.remove(&tag).unwrap();
+            let tag_node = TreeItem::new(id, text, elements).expect("valid node");
             group_nodes_by_tag_group
                 .get_mut(&tag.group())
                 .unwrap()
-                .add_child(tag_node.clone())
+                .add_child(tag_node)
                 .expect("valid tag node");
         }
 
-        for group_node in group_nodes_by_tag_group.values() {
-            root_node.add_child(group_node.clone()).expect("valid group node");
+        let mut group_nodes = Vec::new();
+        for (_, node) in group_nodes_by_tag_group {
+            group_nodes.push(node);
         }
 
-        root_node
+        TreeItem::new("root".to_string(), self.root_dir.display().to_string(), group_nodes).expect("valid root")
     }
 }
 
