@@ -22,44 +22,44 @@ pub struct DatasetEntry {
     pub dataset: dicom_object::FileDicomObject<InMemDicomObject>,
 }
 
-pub fn new(path: &Path) -> Result<DicomData> {
-    let mut datasets_with_filename = Vec::new();
+impl DicomData {
+    pub fn new(path: &Path) -> Result<Self> {
+        let mut datasets_with_filename = Vec::new();
 
-    if path.is_dir() {
-        let mut dir_entries = fs::read_dir(path)?
-            .map(|res| res.map(|e| e.path()))
-            .collect::<Result<Vec<_>, io::Error>>()?;
-        dir_entries.sort();
+        if path.is_dir() {
+            let mut dir_entries = fs::read_dir(path)?
+                .map(|res| res.map(|e| e.path()))
+                .collect::<Result<Vec<_>, io::Error>>()?;
+            dir_entries.sort();
 
-        for entry_path in &dir_entries {
-            if entry_path.is_dir() {
-                continue;
+            for entry_path in &dir_entries {
+                if entry_path.is_dir() {
+                    continue;
+                }
+
+                let dataset = dicom_object::OpenFileOptions::new()
+                    .read_until(dicom_dictionary_std::tags::PIXEL_DATA)
+                    .open_file(entry_path)?;
+                let filename = entry_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string();
+
+                datasets_with_filename.push(DatasetEntry { filename, dataset });
             }
-
-            let dataset = dicom_object::OpenFileOptions::new()
-                .read_until(dicom_dictionary_std::tags::PIXEL_DATA)
-                .open_file(entry_path)?;
-            let filename = entry_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string();
+        } else {
+            let dataset = dicom_object::open_file(path)?;
+            let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string();
 
             datasets_with_filename.push(DatasetEntry { filename, dataset });
         }
-    } else {
-        let dataset = dicom_object::open_file(path)?;
-        let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string();
 
-        datasets_with_filename.push(DatasetEntry { filename, dataset });
+        let num_values_and_length_by_tag = num_distinct_values_and_lengths_by_tag(&datasets_with_filename);
+
+        Ok(Self {
+            root_dir: PathBuf::from(path),
+            datasets_with_filename,
+            num_values_and_length_by_tag,
+        })
     }
 
-    let num_values_and_length_by_tag = num_distinct_values_and_lengths_by_tag(&datasets_with_filename);
-
-    Ok(DicomData {
-        root_dir: PathBuf::from(path),
-        datasets_with_filename,
-        num_values_and_length_by_tag,
-    })
-}
-
-impl DicomData {
     pub fn tree_sorted_by_filename(&self) -> tui_tree_widget::TreeItem<'static, String> {
         let mut root_node = TreeItem::new("root".to_string(), self.root_dir.display().to_string(), Vec::new()).expect("valid root");
 

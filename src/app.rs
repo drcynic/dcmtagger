@@ -12,7 +12,6 @@ use ratatui::{
 };
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use crate::dicom;
 use crate::dicom::DicomData;
 
 #[derive(Debug, Default)]
@@ -30,7 +29,7 @@ pub struct App<'a> {
 
 impl<'a> App<'a> {
     pub fn new(input_path: &'a str) -> anyhow::Result<Self> {
-        let dicom_data = dicom::new(Path::new(input_path))?;
+        let dicom_data = DicomData::new(Path::new(input_path))?;
         let root_item = dicom_data.tree_sorted_by_filename();
         let mut tree_state = TreeState::default();
         tree_state.select(vec![root_item.identifier().clone()]);
