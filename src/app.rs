@@ -12,11 +12,13 @@ use ratatui::{
 };
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-use crate::dicom::{parse_dicom_files, tree_sorted_by_filename, tree_sorted_by_tag};
+use crate::dicom;
+use crate::dicom::DicomData;
 
 #[derive(Debug, Default)]
 pub struct App<'a> {
     input_path: &'a str,
+    dicom_data: DicomData,
     tree_items: Vec<TreeItem<'static, String>>,
     tree_state: TreeState<String>,
     page_size: usize,
@@ -28,14 +30,15 @@ pub struct App<'a> {
 
 impl<'a> App<'a> {
     pub fn new(input_path: &'a str) -> anyhow::Result<Self> {
-        let datasets_by_filename = parse_dicom_files(Path::new(input_path))?;
-        let root_item = tree_sorted_by_filename(input_path, &datasets_by_filename);
+        let dicom_data = dicom::new(Path::new(input_path))?;
+        let root_item = dicom_data.tree_sorted_by_filename();
         let mut tree_state = TreeState::default();
         tree_state.select(vec![root_item.identifier().clone()]);
         tree_state.open(vec![root_item.identifier().clone()]);
 
         Ok(App {
             input_path,
+            dicom_data,
             tree_items: vec![root_item],
             tree_state,
             ..Default::default()
@@ -150,8 +153,7 @@ impl<'a> App<'a> {
     }
 
     fn sort_by_filename(&mut self) {
-        let datasets_by_filename = parse_dicom_files(Path::new(self.input_path)).unwrap();
-        let root_item = tree_sorted_by_filename(self.input_path, &datasets_by_filename);
+        let root_item = self.dicom_data.tree_sorted_by_filename();
         self.tree_state = TreeState::default();
         self.tree_state.select(vec![root_item.identifier().clone()]);
         self.tree_state.open(vec![root_item.identifier().clone()]);
@@ -160,8 +162,7 @@ impl<'a> App<'a> {
     }
 
     fn sort_by_tag(&mut self, min_diffs: usize) {
-        let datasets_by_filename = parse_dicom_files(Path::new(self.input_path)).unwrap();
-        let root_item = tree_sorted_by_tag(self.input_path, &datasets_by_filename, min_diffs);
+        let root_item = self.dicom_data.tree_sorted_by_tag(min_diffs);
         self.tree_state = TreeState::default();
         self.tree_state.select(vec![root_item.identifier().clone()]);
         self.tree_state.open(vec![root_item.identifier().clone()]);
