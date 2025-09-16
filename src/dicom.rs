@@ -13,7 +13,7 @@ pub type TagElement = dicom_core::DataElement<dicom_object::InMemDicomObject, Ve
 pub struct DicomData {
     root_dir: PathBuf,
     datasets_with_filename: Vec<DatasetEntry>,
-    num_values_and_length_by_tag: HashMap<Tag, (usize, usize)>,
+    num_values_and_max_length_by_tag: HashMap<Tag, (usize, Option<u32>)>,
 }
 
 #[derive(Debug, Clone)]
@@ -51,12 +51,12 @@ impl DicomData {
             datasets_with_filename.push(DatasetEntry { filename, dataset });
         }
 
-        let num_values_and_length_by_tag = num_distinct_values_and_lengths_by_tag(&datasets_with_filename);
+        let num_values_and_max_length_by_tag = num_distinct_values_and_max_length_by_tag(&datasets_with_filename);
 
         Ok(Self {
             root_dir: PathBuf::from(path),
             datasets_with_filename,
-            num_values_and_length_by_tag,
+            num_values_and_max_length_by_tag,
         })
     }
 
@@ -122,14 +122,14 @@ impl DicomData {
                     let group_tag_text = format!("{:04x}/", tag.group());
                     TreeItem::new(group_tag_text.clone(), group_tag_text, Vec::new()).expect("valid node")
                 });
-                let (num_values, num_lengths) = self.num_values_and_length_by_tag[&tag];
+                let (num_values, max_length) = self.num_values_and_max_length_by_tag[&tag];
                 if num_values > min_diff {
                     tag_nodes_id_and_text_by_tag.entry(tag).or_insert_with(|| {
                         let tag_name = get_tag_name(elem);
-                        let value_lengths_text = if num_lengths == 1 {
-                            format!(", {}", elem.header().len)
+                        let value_lengths_text = if max_length.is_some() {
+                            String::new() // will be done per element
                         } else {
-                            String::new()
+                            format!(", {}", elem.header().len)
                         };
                         let tag_id = format!("{:04x}_{}", tag.group(), tag.element());
                         let tag_text = format!("{:04x} {} ({}{})", tag.element(), tag_name, elem.vr(), value_lengths_text);
@@ -137,7 +137,13 @@ impl DicomData {
                     });
                     let value = get_value_string(elem);
                     let element_id = format!("{}_{:04x}_{}", &file_id, tag.group(), tag.element(),);
-                    let element_text = format!("{} {} - {}", value, elem.header().len, &entry.filename);
+                    let element_len = elem.header().len;
+                    let field_width = if let Some(max_length) = max_length {
+                        max_length as usize
+                    } else {
+                        element_len.0 as usize
+                    };
+                    let element_text = format!("{:<width$}[{}] - {}", value, element_len, &entry.filename, width = field_width);
                     let element_node = TreeItem::new(element_id, element_text, Vec::new()).expect("valid node");
                     element_nodes_by_tag.entry(tag).or_default().push(element_node);
                 }
@@ -194,7 +200,7 @@ fn get_value_string(elem: &crate::dicom::TagElement) -> String {
     }
 }
 
-pub fn num_distinct_values_and_lengths_by_tag(datasets_with_filename: &[DatasetEntry]) -> HashMap<Tag, (usize, usize)> {
+pub fn num_distinct_values_and_max_length_by_tag(datasets_with_filename: &[DatasetEntry]) -> HashMap<Tag, (usize, Option<u32>)> {
     let mut values_by_tag: HashMap<Tag, (HashSet<String>, HashSet<u32>)> = HashMap::new();
 
     for entry in datasets_with_filename {
@@ -209,7 +215,19 @@ pub fn num_distinct_values_and_lengths_by_tag(datasets_with_filename: &[DatasetE
 
     values_by_tag
         .iter()
-        .map(|(&tag, (values, lengths))| (tag, (values.len(), lengths.len())))
+        .map(|(&tag, (values, lengths))| {
+            (
+                tag,
+                (
+                    values.len(),
+                    if lengths.len() > 1 {
+                        Some(*lengths.iter().max().unwrap())
+                    } else {
+                        None
+                    },
+                ),
+            )
+        })
         .collect()
 }
 
