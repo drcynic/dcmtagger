@@ -163,8 +163,12 @@ impl<'a> App<'a> {
     fn sort_by_tag(&mut self, min_diffs: usize) {
         let root_item = self.dicom_data.tree_sorted_by_tag(min_diffs);
         self.tree_state = TreeState::default();
-        self.tree_state.select(vec![root_item.identifier().clone()]);
         self.tree_state.open(vec![root_item.identifier().clone()]);
+        self.tree_state.select(vec![root_item.identifier().clone()]);
+        // open all groups
+        root_item.children().iter().for_each(|c| {
+            self.tree_state.open(vec![root_item.identifier().clone(), c.identifier().clone()]);
+        });
         self.tree_items = vec![root_item];
         if min_diffs == 0 {
             self.handler_text = "sorted by tag".to_string();
