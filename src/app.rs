@@ -1,6 +1,6 @@
 use std::{io, path::Path};
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
     DefaultTerminal, Frame,
     buffer::Buffer,
@@ -10,9 +10,19 @@ use ratatui::{
     text::{Line, Text},
     widgets::{Block, Borders, Clear, Padding, Paragraph, StatefulWidget, Widget},
 };
+use tui_textarea::{Input, TextArea};
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
 use crate::dicom::DicomData;
+
+#[derive(Debug, Default, PartialEq)]
+enum Mode {
+    #[default]
+    Browse,
+    Help,
+    Search,
+    Cmd,
+}
 
 #[derive(Debug, Default)]
 pub struct App<'a> {
@@ -20,10 +30,12 @@ pub struct App<'a> {
     dicom_data: DicomData,
     tree_items: Vec<TreeItem<'static, String>>,
     tree_state: TreeState<String>,
+    text_area: TextArea<'a>,
+    mode: Mode,
     page_size: usize,
+    search_text: Option<String>,
     handler_text: String,
     exit: bool,
-    show_help: bool,
     help_scroll_offset: usize,
 }
 
@@ -40,6 +52,7 @@ impl<'a> App<'a> {
             dicom_data,
             tree_items: vec![root_item],
             tree_state,
+            text_area: TextArea::new(Vec::new()),
             ..Default::default()
         })
     }
@@ -75,21 +88,25 @@ impl<'a> App<'a> {
     }
 
     fn handle_key_event(&mut self, key_event: KeyEvent) {
-        if self.show_help {
-            // When help is shown, handle keys differently
-            match key_event.code {
-                KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => self.hide_help(),
-                KeyCode::Up | KeyCode::Char('k') => self.scroll_help_up(),
-                KeyCode::Down | KeyCode::Char('j') => self.scroll_help_down(),
-                _ => {}
-            }
-        } else {
-            match key_event.code {
+        match self.mode {
+            Mode::Browse => match key_event.code {
                 KeyCode::Char('1') => self.sort_by_filename(),
                 KeyCode::Char('2') => self.sort_by_tag(0),
                 KeyCode::Char('3') => self.sort_by_tag(1),
                 KeyCode::Char('q') | KeyCode::Esc => self.exit(),
                 KeyCode::Char('?') => self.show_help(),
+                KeyCode::Char('/') => {
+                    self.mode = Mode::Search;
+                    self.text_area = TextArea::new(vec!["".to_string()]);
+                    // let bla = Style::default().add_modifier(Modifier::RAPID_BLINK);
+                    // self.text_area.set_cursor_line_style(bla);
+                    self.handler_text = "Search".to_string();
+                }
+                KeyCode::Char(':') => {
+                    self.mode = Mode::Cmd;
+                    self.text_area = TextArea::new(vec!["".to_string()]);
+                    self.handler_text = "Cmd".to_string();
+                }
                 KeyCode::Up if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_prev_sibling(),
                 KeyCode::Char('K') => self.move_to_prev_sibling(),
                 KeyCode::Down if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_next_sibling(),
@@ -119,8 +136,44 @@ impl<'a> App<'a> {
                 KeyCode::Right if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_next_child(),
                 KeyCode::Right | KeyCode::Char('l') => self.move_into_tree(),
                 KeyCode::Left | KeyCode::Char('h') => self.move_up_tree(),
+                KeyCode::Char('n') => {
+                    if let Some(text) = &self.search_text {
+                        self.handler_text = format!("search for text: {}", text);
+                    } else {
+                        self.handler_text = "nothing to search for".to_string();
+                    }
+                }
                 _ => {}
-            }
+            },
+            Mode::Search => match key_event.code {
+                KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => {
+                    self.mode = Mode::Browse;
+                    self.search_text = None;
+                }
+                KeyCode::Enter => {
+                    self.mode = Mode::Browse;
+                }
+                _ => {
+                    let input = Input::from(key_event);
+                    if self.text_area.input(input) {
+                        self.handler_text = format!("search for: {}", &self.text_area.lines()[0]);
+                        self.search_text = Some(self.text_area.lines()[0].to_string());
+                    }
+                }
+            },
+            Mode::Cmd => match key_event.code {
+                KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => {
+                    self.mode = Mode::Browse;
+                    self.handler_text = "Browse".to_string();
+                }
+                _ => {}
+            },
+            Mode::Help => match key_event.code {
+                KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => self.hide_help(),
+                KeyCode::Up | KeyCode::Char('k') => self.scroll_help_up(),
+                KeyCode::Down | KeyCode::Char('j') => self.scroll_help_down(),
+                _ => {}
+            },
         }
     }
 
@@ -129,12 +182,12 @@ impl<'a> App<'a> {
     }
 
     fn show_help(&mut self) {
-        self.show_help = true;
+        self.mode = Mode::Help;
         self.help_scroll_offset = 0;
     }
 
     fn hide_help(&mut self) {
-        self.show_help = false;
+        self.mode = Mode::Browse;
     }
 
     fn scroll_help_up(&mut self) {
@@ -611,10 +664,11 @@ impl<'a> Widget for &mut App<'a> {
         let input_block = Block::bordered()
             .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
             .border_set(border::PLAIN);
-        Paragraph::new("").block(input_block).render(input_area, buf);
+        self.text_area.set_block(input_block);
+        self.text_area.render(input_area, buf);
 
         // Render help overlay if shown
-        if self.show_help {
+        if self.mode == Mode::Help {
             self.render_help_overlay(area, buf);
         }
     }
