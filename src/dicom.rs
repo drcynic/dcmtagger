@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 use anyhow::Result;
-use dicom_core::Tag;
+use dicom_core::{Length, Tag};
 use dicom_object::InMemDicomObject;
 use tui_tree_widget::TreeItem;
 
@@ -138,10 +138,15 @@ impl DicomData {
                     let value = get_value_string(elem);
                     let element_id = format!("{}_{:04x}_{}", &file_id, tag.group(), tag.element(),);
                     let element_len = elem.header().len;
+                    let element_len = if element_len.0 == Length::UNDEFINED.0 {
+                        5
+                    } else {
+                        element_len.0 as usize
+                    };
                     let field_width = if let Some(max_length) = max_length {
                         max_length as usize
                     } else {
-                        element_len.0 as usize
+                        element_len
                     };
                     let element_text = format!("{:<width$}[{}] - {}", value, element_len, &entry.filename, width = field_width);
                     let element_node = TreeItem::new(element_id, element_text, Vec::new()).expect("valid node");
