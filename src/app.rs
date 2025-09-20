@@ -33,7 +33,7 @@ pub struct App<'a> {
     text_area: TextArea<'a>,
     mode: Mode,
     page_size: usize,
-    search_text: Option<String>,
+    input_text: Option<String>,
     handler_text: String,
     exit: bool,
     help_scroll_offset: usize,
@@ -137,7 +137,7 @@ impl<'a> App<'a> {
                 KeyCode::Right | KeyCode::Char('l') => self.move_into_tree(),
                 KeyCode::Left | KeyCode::Char('h') => self.move_up_tree(),
                 KeyCode::Char('n') => {
-                    if let Some(text) = &self.search_text {
+                    if let Some(text) = &self.input_text {
                         self.handler_text = format!("search for text: {}", text);
                     } else {
                         self.handler_text = "nothing to search for".to_string();
@@ -148,7 +148,7 @@ impl<'a> App<'a> {
             Mode::Search => match key_event.code {
                 KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => {
                     self.mode = Mode::Browse;
-                    self.search_text = None;
+                    self.input_text = None;
                 }
                 KeyCode::Enter => {
                     self.mode = Mode::Browse;
@@ -157,16 +157,25 @@ impl<'a> App<'a> {
                     let input = Input::from(key_event);
                     if self.text_area.input(input) {
                         self.handler_text = format!("search for: {}", &self.text_area.lines()[0]);
-                        self.search_text = Some(self.text_area.lines()[0].to_string());
+                        self.input_text = Some(self.text_area.lines()[0].to_string());
                     }
                 }
             },
             Mode::Cmd => match key_event.code {
-                KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => {
+                KeyCode::Esc => {
                     self.mode = Mode::Browse;
                     self.handler_text = "Browse".to_string();
                 }
-                _ => {}
+                KeyCode::Enter => {
+                    self.mode = Mode::Browse;
+                    self.handler_text = format!("Entered cmd: {}", if let Some(t) = &self.input_text { t } else { "" });
+                }
+                _ => {
+                    let input = Input::from(key_event);
+                    if self.text_area.input(input) {
+                        self.input_text = Some(self.text_area.lines()[0].to_string());
+                    }
+                }
             },
             Mode::Help => match key_event.code {
                 KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => self.hide_help(),
