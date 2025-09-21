@@ -20,7 +20,6 @@ enum Mode {
     #[default]
     Browse,
     Help,
-    Search,
     Cmd,
 }
 
@@ -46,13 +45,15 @@ impl<'a> App<'a> {
         let mut tree_state = TreeState::default();
         tree_state.select(vec![root_item.identifier().clone()]);
         tree_state.open(vec![root_item.identifier().clone()]);
+        let mut text_area = TextArea::new(Vec::new());
+        text_area.set_cursor_style(Style::default());
 
         Ok(App {
             input_path,
             dicom_data,
             tree_items: vec![root_item],
             tree_state,
-            text_area: TextArea::new(Vec::new()),
+            text_area,
             ..Default::default()
         })
     }
@@ -96,16 +97,10 @@ impl<'a> App<'a> {
                 KeyCode::Char('q') | KeyCode::Esc => self.exit(),
                 KeyCode::Char('?') => self.show_help(),
                 KeyCode::Char('/') => {
-                    self.mode = Mode::Search;
-                    self.text_area = TextArea::new(vec!["".to_string()]);
-                    // let bla = Style::default().add_modifier(Modifier::RAPID_BLINK);
-                    // self.text_area.set_cursor_line_style(bla);
-                    self.handler_text = "Search".to_string();
+                    self.setup_input_edit('/');
                 }
                 KeyCode::Char(':') => {
-                    self.mode = Mode::Cmd;
-                    self.text_area = TextArea::new(vec!["".to_string()]);
-                    self.handler_text = "Cmd".to_string();
+                    self.setup_input_edit(':');
                 }
                 KeyCode::Up if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_prev_sibling(),
                 KeyCode::Char('K') => self.move_to_prev_sibling(),
@@ -145,35 +140,28 @@ impl<'a> App<'a> {
                 }
                 _ => {}
             },
-            Mode::Search => match key_event.code {
-                KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => {
-                    self.mode = Mode::Browse;
-                    self.input_text = None;
-                }
-                KeyCode::Enter => {
-                    self.mode = Mode::Browse;
-                }
-                _ => {
-                    let input = Input::from(key_event);
-                    if self.text_area.input(input) {
-                        self.handler_text = format!("search for: {}", &self.text_area.lines()[0]);
-                        self.input_text = Some(self.text_area.lines()[0].to_string());
-                    }
-                }
-            },
             Mode::Cmd => match key_event.code {
                 KeyCode::Esc => {
                     self.mode = Mode::Browse;
-                    self.handler_text = "Browse".to_string();
+                    self.text_area.move_cursor(tui_textarea::CursorMove::Head);
+                    self.text_area.delete_line_by_end();
+                    self.text_area.set_cursor_style(Style::default());
+                    self.input_text = None;
                 }
                 KeyCode::Enter => {
-                    self.mode = Mode::Browse;
-                    self.handler_text = format!("Entered cmd: {}", if let Some(t) = &self.input_text { t } else { "" });
+                    // self.mode = Mode::Browse;
                 }
                 _ => {
                     let input = Input::from(key_event);
                     if self.text_area.input(input) {
-                        self.input_text = Some(self.text_area.lines()[0].to_string());
+                        let current_text = &self.text_area.lines()[0];
+                        self.input_text = if current_text.is_empty() {
+                            self.mode = Mode::Browse;
+                            self.text_area.set_cursor_style(Style::default());
+                            None
+                        } else {
+                            Some(current_text.to_string())
+                        }
                     }
                 }
             },
@@ -211,6 +199,13 @@ impl<'a> App<'a> {
         if self.help_scroll_offset < max_scroll {
             self.help_scroll_offset += 1;
         }
+    }
+
+    fn setup_input_edit(&mut self, start_char: char) {
+        self.mode = Mode::Cmd;
+        self.text_area = TextArea::new(vec![start_char.to_string()]);
+        self.text_area.move_cursor(tui_textarea::CursorMove::End);
+        self.text_area.set_cursor_line_style(Style::default());
     }
 
     fn sort_by_filename(&mut self) {
