@@ -20,7 +20,7 @@ enum Mode {
     #[default]
     Browse,
     Help,
-    Cmd,
+    Search,
 }
 
 #[derive(Debug, Default)]
@@ -99,9 +99,6 @@ impl<'a> App<'a> {
                 KeyCode::Char('/') => {
                     self.setup_input_edit('/');
                 }
-                KeyCode::Char(':') => {
-                    self.setup_input_edit(':');
-                }
                 KeyCode::Up if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_prev_sibling(),
                 KeyCode::Char('K') => self.move_to_prev_sibling(),
                 KeyCode::Down if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_next_sibling(),
@@ -140,7 +137,7 @@ impl<'a> App<'a> {
                 }
                 _ => {}
             },
-            Mode::Cmd => match key_event.code {
+            Mode::Search => match key_event.code {
                 KeyCode::Esc => {
                     self.mode = Mode::Browse;
                     self.text_area.move_cursor(tui_textarea::CursorMove::Head);
@@ -149,8 +146,14 @@ impl<'a> App<'a> {
                     self.input_text = None;
                 }
                 KeyCode::Enter => {
-                    // self.mode = Mode::Browse;
+                    let current_text = &self.text_area.lines()[0];
+                    if current_text.chars().nth(0).unwrap() == '/' {
+                        let slice = &current_text[1..];
+                        self.find_next_node_with_text(slice.to_string());
+                    }
                 }
+                // KeyCode::Char('n') => {
+                // }
                 _ => {
                     let input = Input::from(key_event);
                     if self.text_area.input(input) {
@@ -202,7 +205,7 @@ impl<'a> App<'a> {
     }
 
     fn setup_input_edit(&mut self, start_char: char) {
-        self.mode = Mode::Cmd;
+        self.mode = Mode::Search;
         self.text_area = TextArea::new(vec![start_char.to_string()]);
         self.text_area.move_cursor(tui_textarea::CursorMove::End);
         self.text_area.set_cursor_line_style(Style::default());
