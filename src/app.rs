@@ -480,29 +480,24 @@ impl<'a> App<'a> {
     fn move_to_next_child(&mut self) {
         self.handler_text = "shift+L/shift+→ -> move to next child".to_string();
 
-        let selected = self.tree_state.selected();
-        if selected.is_empty() {
-            return;
-        }
+        let selected = self.tree_state.selected().to_vec();
 
-        let current = selected.to_vec();
-        let flat_items = self.tree_state.flatten(&self.tree_items);
+        // Extract needed information before doing mutable operations
+        let has_children_and_first_child = self
+            .tree_item_for_visible_id(&selected)
+            .filter(|item| !item.children().is_empty())
+            .and_then(|item| item.children().first().map(|first| first.identifier().clone()));
 
-        // Find current item and if it has children
-        if let Some(current_item) = flat_items.iter().find(|item| item.identifier == current)
-            && !current_item.item.children().is_empty()
-        {
+        if let Some(first_child_id) = has_children_and_first_child {
             // If current node is collapsed and has children, expand it first
-            if !self.tree_state.opened().contains(current.as_slice()) {
-                self.tree_state.open(current.clone());
+            if !self.tree_state.opened().contains(&selected) {
+                self.tree_state.open(selected.to_vec());
             }
 
             // Move to first child after expanding
-            if let Some(first_child) = current_item.item.children().first() {
-                let mut child_path = current;
-                child_path.push(first_child.identifier().clone());
-                self.tree_state.select(child_path);
-            }
+            let mut child_path = selected.to_vec();
+            child_path.push(first_child_id);
+            self.tree_state.select(child_path);
         }
     }
 
