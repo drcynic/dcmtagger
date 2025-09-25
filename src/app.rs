@@ -604,6 +604,40 @@ impl<'a> App<'a> {
         }
     }
 
+    fn tree_item_for_id(&self, id: &[String]) -> Option<&TreeItem<'static, String>> {
+        let mut tree: &[TreeItem<'_, String>] = &self.tree_items;
+        for (depth, id_part) in id.iter().enumerate() {
+            if let Some(child) = tree.iter().find(|ti| ti.identifier() == id_part) {
+                tree = child.children();
+                if depth == id.len() - 1 {
+                    return Some(child);
+                }
+            } else {
+                // not found
+                break;
+            }
+        }
+        None
+    }
+
+    fn tree_item_for_visible_id(&self, id: &[String]) -> Option<&TreeItem<'_, String>> {
+        self.tree_state
+            .flatten(&self.tree_items)
+            .into_iter()
+            .find(|item| item.identifier == id)
+            .map(|i| i.item)
+    }
+
+    fn find_next_node_with_text(&mut self, _text: String) {
+        let selected = self.tree_state.selected();
+        let start_node = self.tree_item_for_id(selected);
+        if let Some(found_start) = start_node {
+            self.handler_text = found_start.identifier().to_string();
+        } else {
+            self.handler_text = "Found nothing".to_string();
+        }
+    }
+
     fn render_help_overlay(&self, area: Rect, buf: &mut Buffer) {
         // Calculate centered popup area (roughly 60% width, 70% height)
         let popup_width = (area.width as f32 * 0.6) as u16;
