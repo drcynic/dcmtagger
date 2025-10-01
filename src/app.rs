@@ -27,8 +27,8 @@ enum Mode {
 pub struct App<'a> {
     input_path: &'a str,
     dicom_data: DicomData,
-    tree_items: Vec<TreeItem<'static, String>>,
-    tree_state: TreeState<String>,
+    tree_items: Vec<TreeItem<'static, usize>>,
+    tree_state: TreeState<usize>,
     text_area: TextArea<'a>,
     mode: Mode,
     page_size: usize,
@@ -43,8 +43,8 @@ impl<'a> App<'a> {
         let dicom_data = DicomData::new(Path::new(input_path))?;
         let root_item = dicom_data.tree_sorted_by_filename();
         let mut tree_state = TreeState::default();
-        tree_state.select(vec![root_item.identifier().clone()]);
-        tree_state.open(vec![root_item.identifier().clone()]);
+        tree_state.select(vec![*root_item.identifier()]);
+        tree_state.open(vec![*root_item.identifier()]);
         let mut text_area = TextArea::new(Vec::new());
         text_area.set_cursor_style(Style::default());
 
@@ -214,8 +214,8 @@ impl<'a> App<'a> {
     fn sort_by_filename(&mut self) {
         let root_item = self.dicom_data.tree_sorted_by_filename();
         self.tree_state = TreeState::default();
-        self.tree_state.select(vec![root_item.identifier().clone()]);
-        self.tree_state.open(vec![root_item.identifier().clone()]);
+        self.tree_state.select(vec![*root_item.identifier()]);
+        self.tree_state.open(vec![*root_item.identifier()]);
         self.tree_items = vec![root_item];
         self.handler_text = "sorted by filename".to_string();
     }
@@ -223,11 +223,11 @@ impl<'a> App<'a> {
     fn sort_by_tag(&mut self, min_diffs: usize) {
         let root_item = self.dicom_data.tree_sorted_by_tag(min_diffs);
         self.tree_state = TreeState::default();
-        self.tree_state.open(vec![root_item.identifier().clone()]);
-        self.tree_state.select(vec![root_item.identifier().clone()]);
+        self.tree_state.open(vec![*root_item.identifier()]);
+        self.tree_state.select(vec![*root_item.identifier()]);
         // open all groups
         root_item.children().iter().for_each(|c| {
-            self.tree_state.open(vec![root_item.identifier().clone(), c.identifier().clone()]);
+            self.tree_state.open(vec![*root_item.identifier(), *c.identifier()]);
         });
         self.tree_items = vec![root_item];
         if min_diffs == 0 {
@@ -309,53 +309,48 @@ impl<'a> App<'a> {
         }
     }
 
-    fn expand_node_recursive(&mut self, node_path: Vec<String>) {
+    fn expand_node_recursive(&mut self, node_path: Vec<usize>) {
         let all_paths = self.collect_all_descendant_paths(node_path);
         for path in all_paths {
             self.tree_state.open(path);
         }
     }
 
-    fn collapse_node_recursive(&mut self, node_path: Vec<String>) {
+    fn collapse_node_recursive(&mut self, node_path: Vec<usize>) {
         let all_paths = self.collect_all_descendant_paths(node_path);
         for path in all_paths.into_iter().rev() {
             self.tree_state.close(&path);
         }
     }
 
-    fn collect_all_descendant_paths(&self, node_path: Vec<String>) -> Vec<Vec<String>> {
+    fn collect_all_descendant_paths(&self, node_path: Vec<usize>) -> Vec<Vec<usize>> {
         let mut all_paths = Vec::new();
         self.collect_paths_from_tree(&node_path, &mut all_paths);
         all_paths
     }
 
-    fn collect_paths_from_tree(&self, target_path: &[String], all_paths: &mut Vec<Vec<String>>) {
+    fn collect_paths_from_tree(&self, target_path: &[usize], all_paths: &mut Vec<Vec<usize>>) {
         if target_path.len() == 1 {
             // Found the target item, collect it and all descendants
-            let path = vec![self.tree_items[0].identifier().clone()];
+            let path = vec![*self.tree_items[0].identifier()];
             all_paths.push(path.clone());
             Self::collect_children_paths(&self.tree_items[0], &path, all_paths);
         } else {
             // Continue searching in children
-            Self::collect_paths_from_children(
-                self.tree_items[0].children(),
-                &target_path[1..],
-                &[target_path[0].clone()],
-                all_paths,
-            );
+            Self::collect_paths_from_children(self.tree_items[0].children(), &target_path[1..], &[target_path[0]], all_paths);
         }
     }
 
     fn collect_paths_from_children(
-        children: &[TreeItem<String>],
-        target_path: &[String],
-        current_path: &[String],
-        all_paths: &mut Vec<Vec<String>>,
+        children: &[TreeItem<usize>],
+        target_path: &[usize],
+        current_path: &[usize],
+        all_paths: &mut Vec<Vec<usize>>,
     ) {
         for child in children {
             if child.identifier() == &target_path[0] {
                 let mut child_path = current_path.to_vec();
-                child_path.push(child.identifier().clone());
+                child_path.push(*child.identifier());
 
                 if target_path.len() == 1 {
                     // Found the target, collect it and all descendants
@@ -370,10 +365,10 @@ impl<'a> App<'a> {
         }
     }
 
-    fn collect_children_paths(item: &TreeItem<String>, item_path: &[String], all_paths: &mut Vec<Vec<String>>) {
+    fn collect_children_paths(item: &TreeItem<usize>, item_path: &[usize], all_paths: &mut Vec<Vec<usize>>) {
         for child in item.children() {
             let mut child_path = item_path.to_vec();
-            child_path.push(child.identifier().clone());
+            child_path.push(*child.identifier());
             all_paths.push(child_path.clone());
             Self::collect_children_paths(child, &child_path, all_paths);
         }
@@ -417,18 +412,18 @@ impl<'a> App<'a> {
                 };
 
                 let mut target_path = parent_path.to_vec();
-                target_path.push(siblings[target_idx].identifier().clone());
+                target_path.push(*siblings[target_idx].identifier());
                 self.tree_state.select(target_path);
             }
         }
     }
 
-    fn find_siblings_at_path(&self, path: &[String]) -> Option<&[TreeItem<'_, String>]> {
+    fn find_siblings_at_path(&self, path: &[usize]) -> Option<&[TreeItem<'_, usize>]> {
         if path.is_empty() {
             return Some(self.tree_items.as_slice());
         }
 
-        let mut current_items: &[TreeItem<String>] = self.tree_items.as_slice();
+        let mut current_items: &[TreeItem<usize>] = self.tree_items.as_slice();
 
         for path_segment in path {
             if let Some(item) = current_items.iter().find(|item| item.identifier() == path_segment) {
@@ -489,7 +484,7 @@ impl<'a> App<'a> {
         let has_children_and_first_child = self
             .tree_item_for_visible_id(&selected)
             .filter(|item| !item.children().is_empty())
-            .and_then(|item| item.children().first().map(|first| first.identifier().clone()));
+            .and_then(|item| item.children().first().map(|first| *first.identifier()));
 
         if let Some(first_child_id) = has_children_and_first_child {
             // If current node is collapsed and has children, expand it first
@@ -540,7 +535,7 @@ impl<'a> App<'a> {
 
             if let Some(target_child) = target_child {
                 let mut target_sibling_path = parent_path.to_vec();
-                target_sibling_path.push(target_child.identifier().clone());
+                target_sibling_path.push(*target_child.identifier());
                 self.tree_state.select(target_sibling_path);
             }
         }
@@ -550,7 +545,7 @@ impl<'a> App<'a> {
         self.handler_text = "c -> collapse current node and siblings".to_string();
         self.apply_on_siblings(|tree_state, path| {
             if path.len() == 1 {
-                tree_state.close(&[path[0].clone()]);
+                tree_state.close(&[path[0]]);
             } else {
                 tree_state.close(&path);
             }
@@ -566,7 +561,7 @@ impl<'a> App<'a> {
 
     fn apply_on_siblings<F>(&mut self, mut operation: F)
     where
-        F: FnMut(&mut TreeState<String>, Vec<String>),
+        F: FnMut(&mut TreeState<usize>, Vec<usize>),
     {
         let selected = self.tree_state.selected();
         if selected.is_empty() {
@@ -576,7 +571,7 @@ impl<'a> App<'a> {
         if selected.len() == 1 {
             // At root level, operate on all root items
             for item in &self.tree_items {
-                operation(&mut self.tree_state, vec![item.identifier().clone()]);
+                operation(&mut self.tree_state, vec![*item.identifier()]);
             }
         } else {
             // Find parent and operate on all its children (siblings)
@@ -590,7 +585,7 @@ impl<'a> App<'a> {
                     .iter()
                     .map(|child| {
                         let mut child_path = parent_path.to_vec();
-                        child_path.push(child.identifier().clone());
+                        child_path.push(*child.identifier());
                         child_path
                     })
                     .collect();
@@ -602,8 +597,8 @@ impl<'a> App<'a> {
         }
     }
 
-    fn tree_item_for_id(&self, id: &[String]) -> Option<&TreeItem<'static, String>> {
-        let mut tree: &[TreeItem<'_, String>] = &self.tree_items;
+    fn tree_item_for_id(&self, id: &[usize]) -> Option<&TreeItem<'static, usize>> {
+        let mut tree: &[TreeItem<'_, usize>] = &self.tree_items;
         for (depth, id_part) in id.iter().enumerate() {
             if let Some(child) = tree.iter().find(|ti| ti.identifier() == id_part) {
                 tree = child.children();
@@ -618,7 +613,7 @@ impl<'a> App<'a> {
         None
     }
 
-    fn tree_item_for_visible_id(&self, id: &[String]) -> Option<&TreeItem<'_, String>> {
+    fn tree_item_for_visible_id(&self, id: &[usize]) -> Option<&TreeItem<'_, usize>> {
         self.tree_state
             .flatten(&self.tree_items)
             .into_iter()
