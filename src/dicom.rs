@@ -60,8 +60,9 @@ impl DicomData {
         })
     }
 
-    pub fn tree_sorted_by_filename(&self) -> tui_tree_widget::TreeItem<'static, usize> {
+    pub fn tree_sorted_by_filename(&self) -> (tui_tree_widget::TreeItem<'static, usize>, BTreeMap<usize, String>) {
         let mut root_node = TreeItem::new(0usize, self.root_dir.display().to_string(), Vec::new()).expect("valid root");
+        let mut element_texts_by_id = BTreeMap::new();
         let mut id_counter = 1usize;
 
         for entry in &self.datasets_with_filename {
@@ -93,6 +94,7 @@ impl DicomData {
                     elem.header().len,
                     value
                 );
+                element_texts_by_id.insert(id_counter, element_text.clone());
                 let element_node = TreeItem::new_leaf(id_counter, element_text);
                 id_counter += 1;
                 current_group_node.as_mut().unwrap().add_child(element_node).expect("valid element");
@@ -102,10 +104,10 @@ impl DicomData {
             root_node.add_child(file_node).expect("valid group");
         }
 
-        root_node
+        (root_node, element_texts_by_id)
     }
 
-    pub fn tree_sorted_by_tag(&self, min_diff: usize) -> tui_tree_widget::TreeItem<'static, usize> {
+    pub fn tree_sorted_by_tag(&self, min_diff: usize) -> (tui_tree_widget::TreeItem<'static, usize>, BTreeMap<usize, String>) {
         if self.datasets_with_filename.len() == 1 {
             return self.tree_sorted_by_filename();
         }
@@ -113,6 +115,7 @@ impl DicomData {
         let mut group_nodes_by_tag_group: BTreeMap<u16, TreeItem<'_, usize>> = BTreeMap::new();
         let mut tag_nodes_id_and_text_by_tag: BTreeMap<Tag, (usize, String)> = BTreeMap::new();
         let mut element_nodes_by_tag: BTreeMap<Tag, Vec<TreeItem<'_, usize>>> = BTreeMap::new();
+        let mut element_texts_by_id = BTreeMap::new();
         let mut id_counter = 1usize;
 
         for entry in &self.datasets_with_filename {
@@ -151,7 +154,8 @@ impl DicomData {
                         element_len
                     };
                     let element_text = format!("{:<width$}[{}] - {}", value, element_len, &entry.filename, width = field_width);
-                    let element_node = TreeItem::new(id_counter, element_text, Vec::new()).expect("valid node");
+                    let element_node = TreeItem::new(id_counter, element_text.clone(), Vec::new()).expect("valid node");
+                    element_texts_by_id.insert(id_counter, element_text);
                     id_counter += 1;
                     element_nodes_by_tag.entry(tag).or_default().push(element_node);
                 }
@@ -173,7 +177,8 @@ impl DicomData {
             group_nodes.push(node);
         }
 
-        TreeItem::new(0usize, self.root_dir.display().to_string(), group_nodes).expect("valid root")
+        let root = TreeItem::new(0usize, self.root_dir.display().to_string(), group_nodes).expect("valid root");
+        (root, element_texts_by_id)
     }
 }
 

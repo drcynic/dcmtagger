@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::{io, path::Path};
 
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -28,6 +29,7 @@ pub struct App<'a> {
     input_path: &'a str,
     dicom_data: DicomData,
     tree_items: Vec<TreeItem<'static, usize>>,
+    element_texts_by_id: BTreeMap<usize, String>,
     tree_state: TreeState<usize>,
     text_area: TextArea<'a>,
     mode: Mode,
@@ -41,7 +43,7 @@ pub struct App<'a> {
 impl<'a> App<'a> {
     pub fn new(input_path: &'a str) -> anyhow::Result<Self> {
         let dicom_data = DicomData::new(Path::new(input_path))?;
-        let root_item = dicom_data.tree_sorted_by_filename();
+        let (root_item, element_texts_by_id) = dicom_data.tree_sorted_by_filename();
         let mut tree_state = TreeState::default();
         tree_state.select(vec![*root_item.identifier()]);
         tree_state.open(vec![*root_item.identifier()]);
@@ -52,6 +54,7 @@ impl<'a> App<'a> {
             input_path,
             dicom_data,
             tree_items: vec![root_item],
+            element_texts_by_id,
             tree_state,
             text_area,
             ..Default::default()
@@ -212,16 +215,17 @@ impl<'a> App<'a> {
     }
 
     fn sort_by_filename(&mut self) {
-        let root_item = self.dicom_data.tree_sorted_by_filename();
+        let (root_item, element_texts_by_id) = self.dicom_data.tree_sorted_by_filename();
         self.tree_state = TreeState::default();
         self.tree_state.select(vec![*root_item.identifier()]);
         self.tree_state.open(vec![*root_item.identifier()]);
         self.tree_items = vec![root_item];
+        self.element_texts_by_id = element_texts_by_id;
         self.handler_text = "sorted by filename".to_string();
     }
 
     fn sort_by_tag(&mut self, min_diffs: usize) {
-        let root_item = self.dicom_data.tree_sorted_by_tag(min_diffs);
+        let (root_item, element_texts_by_id) = self.dicom_data.tree_sorted_by_tag(min_diffs);
         self.tree_state = TreeState::default();
         self.tree_state.open(vec![*root_item.identifier()]);
         self.tree_state.select(vec![*root_item.identifier()]);
@@ -230,6 +234,7 @@ impl<'a> App<'a> {
             self.tree_state.open(vec![*root_item.identifier(), *c.identifier()]);
         });
         self.tree_items = vec![root_item];
+        self.element_texts_by_id = element_texts_by_id;
         if min_diffs == 0 {
             self.handler_text = "sorted by tag".to_string();
         } else {
@@ -621,14 +626,81 @@ impl<'a> App<'a> {
             .map(|i| i.item)
     }
 
-    fn find_next_node_with_text(&mut self, _text: String) {
-        let selected = self.tree_state.selected();
-        let start_node = self.tree_item_for_id(selected);
-        if let Some(found_start) = start_node {
-            self.handler_text = found_start.identifier().to_string();
-        } else {
-            self.handler_text = "Found nothing".to_string();
+    fn next_tree_item(&self, current_id: &[usize]) -> Option<(&TreeItem<'_, usize>, Vec<usize>)> {
+        let current = self.tree_item_for_id(current_id)?;
+
+        // If current node has children, return the first child
+        if let Some(child) = current.child(0) {
+            let mut child_path_id = current_id.to_vec();
+            child_path_id.push(*child.identifier());
+            return Some((child, child_path_id));
         }
+
+        // No children, so we need to find the next sibling or go up the tree
+        let mut path_to_check = current_id.to_vec();
+
+        while !path_to_check.is_empty() {
+            let parent_id_path = &path_to_check[..path_to_check.len() - 1];
+
+            if let Some(parent) = self.tree_item_for_id(parent_id_path) {
+                let current_idx = parent
+                    .children()
+                    .iter()
+                    .position(|child| child.identifier() == path_to_check.last().unwrap())?;
+
+                // Check if there's a next sibling
+                if let Some(next_sibling) = parent.children().get(current_idx + 1) {
+                    let mut next_path = parent_id_path.to_vec();
+                    next_path.push(*next_sibling.identifier());
+                    return Some((next_sibling, next_path));
+                }
+
+                // No next sibling, go up one level and try again
+                path_to_check = parent_id_path.to_vec();
+            } else {
+                return Some((&self.tree_items[0], vec![0]));
+            }
+        }
+
+        None
+    }
+
+    fn open_path(&mut self, path: &[usize]) {
+        for i in 1..path.len() {
+            let id = path[..i].to_vec();
+            self.tree_state.open(id);
+        }
+    }
+
+    fn find_next_node_with_text(&mut self, search_text: String) {
+        let start_selected = self.tree_state.selected().to_vec();
+        let mut current_path = start_selected.clone();
+
+        loop {
+            if let Some((next, next_id_path)) = self.next_tree_item(&current_path) {
+                let next_id = *next.identifier();
+                // If we've wrapped around to the starting position, we've searched everything
+                if next_id_path == start_selected {
+                    break;
+                }
+
+                if let Some(node_text) = self.element_texts_by_id.get(&next_id)
+                    && node_text.contains(&search_text)
+                {
+                    self.handler_text = format!("{:?} -> {}", next_id_path, &node_text);
+                    self.open_path(&next_id_path);
+                    self.tree_state.select(next_id_path);
+                    return;
+                }
+
+                current_path = next_id_path;
+            } else {
+                self.handler_text = "break".to_string();
+                return;
+            }
+        }
+
+        self.handler_text = "No matching node found".to_string();
     }
 
     fn render_help_overlay(&self, area: Rect, buf: &mut Buffer) {
@@ -736,31 +808,31 @@ pub const fn help_text() -> &'static str {
 "#
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use std::collections::BTreeMap;
+#[cfg(test)]
+mod tests {
+    // use super::*;
+    // use std::collections::BTreeMap;
 
-//     #[test]
-//     fn test_file_tree_structure() {
-// let dict = dicom_dictionary_std::StandardDataDictionary;
-// let mut tags = BTreeMap::new();
-// let elements = vec![];
-// tags.insert(0x0008, elements.clone());
-// tags.insert(0x0010, elements);
-// let di = DicomInput {
-//     base_path: "root".to_string(),
-//     file_tags: BTreeMap::from([("01.dcm".to_string(), tags)]),
-// };
+    //     #[test]
+    //     fn test_file_tree_structure() {
+    // let dict = dicom_dictionary_std::StandardDataDictionary;
+    // let mut tags = BTreeMap::new();
+    // let elements = vec![];
+    // tags.insert(0x0008, elements.clone());
+    // tags.insert(0x0010, elements);
+    // let di = DicomInput {
+    //     base_path: "root".to_string(),
+    //     file_tags: BTreeMap::from([("01.dcm".to_string(), tags)]),
+    // };
 
-// let root_item = build_tree(&di);
+    // let root_item = build_tree(&di);
 
-// println!("root: {:?}", &root_item);
-// let children = root_item.children();
-// println!("Children: {:?}", &children);
-// assert_eq!(children.len(), 2, "Should have 2 groups");
+    // println!("root: {:?}", &root_item);
+    // let children = root_item.children();
+    // println!("Children: {:?}", &children);
+    // assert_eq!(children.len(), 2, "Should have 2 groups");
 
-// assert_eq!(children[0].identifier(), "group_0008");
-// assert_eq!(children[1].identifier(), "group_0010");
-// }
-// }
+    // assert_eq!(children[0].identifier(), "group_0008");
+    // assert_eq!(children[1].identifier(), "group_0010");
+    // }
+}
