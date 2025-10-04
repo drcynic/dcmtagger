@@ -139,6 +139,7 @@ impl DicomData {
                         let tag_id = id_counter;
                         id_counter += 1;
                         let tag_text = format!("{:04x} {} ({}{})", tag.element(), tag_name, elem.vr(), value_lengths_text);
+                        element_texts_by_id.insert(tag_id, tag_text.clone());
                         (tag_id, tag_text)
                     });
                     let value = get_value_string(elem);
