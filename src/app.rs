@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::fmt::Debug;
 use std::{io, path::Path};
 
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -35,6 +36,7 @@ pub struct App<'a> {
     mode: Mode,
     page_size: usize,
     input_text: Option<String>,
+    search_start_node_id: Vec<usize>,
     handler_text: String,
     exit: bool,
     help_scroll_offset: usize,
@@ -133,7 +135,9 @@ impl<'a> App<'a> {
                 KeyCode::Left | KeyCode::Char('h') => self.move_up_tree(),
                 KeyCode::Char('n') => {
                     if let Some(text) = &self.input_text {
-                        self.handler_text = format!("search for text: {}", text);
+                        self.handler_text = format!("search for text: {}", &text);
+                        let start_node = self.tree_state.selected().to_vec();
+                        self.find_next_node_with_text(text[1..].to_lowercase(), &start_node);
                     } else {
                         self.handler_text = "nothing to search for".to_string();
                     }
@@ -149,14 +153,9 @@ impl<'a> App<'a> {
                     self.input_text = None;
                 }
                 KeyCode::Enter => {
-                    let current_text = &self.text_area.lines()[0];
-                    if current_text.chars().nth(0).unwrap() == '/' {
-                        let slice = &current_text[1..];
-                        self.find_next_node_with_text(slice.to_string());
-                    }
+                    self.mode = Mode::Browse;
+                    self.text_area.set_cursor_style(Style::default());
                 }
-                // KeyCode::Char('n') => {
-                // }
                 _ => {
                     let input = Input::from(key_event);
                     if self.text_area.input(input) {
@@ -167,6 +166,9 @@ impl<'a> App<'a> {
                             None
                         } else {
                             Some(current_text.to_string())
+                        };
+                        if let Some(t) = &self.input_text {
+                            self.find_next_node_with_text(t[1..].to_lowercase(), &self.search_start_node_id.to_vec());
                         }
                     }
                 }
@@ -209,7 +211,13 @@ impl<'a> App<'a> {
 
     fn setup_input_edit(&mut self, start_char: char) {
         self.mode = Mode::Search;
-        self.text_area = TextArea::new(vec![start_char.to_string()]);
+        self.search_start_node_id = self.tree_state.selected().to_vec();
+        let start_text = vec![if let Some(text) = &self.input_text {
+            text.to_string()
+        } else {
+            start_char.to_string()
+        }];
+        self.text_area = TextArea::new(start_text);
         self.text_area.move_cursor(tui_textarea::CursorMove::End);
         self.text_area.set_cursor_line_style(Style::default());
     }
@@ -672,20 +680,20 @@ impl<'a> App<'a> {
         }
     }
 
-    fn find_next_node_with_text(&mut self, search_text: String) {
-        let start_selected = self.tree_state.selected().to_vec();
-        let mut current_path = start_selected.clone();
+    fn find_next_node_with_text(&mut self, search_text: String, start_node: &[usize]) {
+        // let start_selected = self.tree_state.selected().to_vec();
+        let mut current_path = start_node.to_vec();
 
         loop {
             if let Some((next, next_id_path)) = self.next_tree_item(&current_path) {
                 let next_id = *next.identifier();
                 // If we've wrapped around to the starting position, we've searched everything
-                if next_id_path == start_selected {
+                if next_id_path == start_node {
                     break;
                 }
 
                 if let Some(node_text) = self.element_texts_by_id.get(&next_id)
-                    && node_text.contains(&search_text)
+                    && node_text.to_lowercase().contains(&search_text)
                 {
                     self.handler_text = format!("{:?} -> {}", next_id_path, &node_text);
                     self.open_path(&next_id_path);
