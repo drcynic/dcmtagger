@@ -25,6 +25,12 @@ enum Mode {
     Search,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum SearchDirection {
+    Forward,
+    Backward,
+}
+
 #[derive(Debug, Default)]
 pub struct App<'a> {
     input_path: &'a str,
@@ -133,14 +139,13 @@ impl<'a> App<'a> {
                 KeyCode::Right if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_next_child(),
                 KeyCode::Right | KeyCode::Char('l') => self.move_into_tree(),
                 KeyCode::Left | KeyCode::Char('h') => self.move_up_tree(),
+                KeyCode::Char('N') => {
+                    let start_node = self.tree_state.selected().to_vec();
+                    self.try_search(SearchDirection::Backward, &start_node);
+                }
                 KeyCode::Char('n') => {
-                    if let Some(text) = &self.input_text {
-                        self.handler_text = format!("search for text: {}", &text);
-                        let start_node = self.tree_state.selected().to_vec();
-                        self.find_next_node_with_text(text[1..].to_lowercase(), &start_node);
-                    } else {
-                        self.handler_text = "nothing to search for".to_string();
-                    }
+                    let start_node = self.tree_state.selected().to_vec();
+                    self.try_search(SearchDirection::Forward, &start_node);
                 }
                 _ => {}
             },
@@ -167,9 +172,7 @@ impl<'a> App<'a> {
                         } else {
                             Some(current_text.to_string())
                         };
-                        if let Some(t) = &self.input_text {
-                            self.find_next_node_with_text(t[1..].to_lowercase(), &self.search_start_node_id.to_vec());
-                        }
+                        self.try_search(SearchDirection::Forward, &self.search_start_node_id.to_vec());
                     }
                 }
             },
@@ -673,6 +676,63 @@ impl<'a> App<'a> {
         None
     }
 
+    fn prev_tree_item(&self, current_id: &[usize]) -> Option<(&TreeItem<'_, usize>, Vec<usize>)> {
+        let _current = self.tree_item_for_id(current_id)?;
+
+        // If current node is not the first child, find previous sibling and go to its rightmost descendant
+        if current_id.len() > 1 {
+            let parent_id_path = &current_id[..current_id.len() - 1];
+            if let Some(parent) = self.tree_item_for_id(parent_id_path) {
+                let current_idx = parent
+                    .children()
+                    .iter()
+                    .position(|child| child.identifier() == current_id.last().unwrap())?;
+
+                // If there's a previous sibling
+                if current_idx > 0 {
+                    let prev_sibling = parent.children().get(current_idx - 1)?;
+                    let mut prev_path = parent_id_path.to_vec();
+                    prev_path.push(*prev_sibling.identifier());
+
+                    // Go to the rightmost descendant of the previous sibling
+                    return self.rightmost_descendant(prev_sibling, prev_path);
+                }
+            }
+        }
+
+        // No previous sibling, so go to parent (if not at root)
+        if current_id.len() > 1 {
+            let parent_id_path = &current_id[..current_id.len() - 1];
+            if let Some(parent) = self.tree_item_for_id(parent_id_path) {
+                return Some((parent, parent_id_path.to_vec()));
+            }
+        }
+
+        // At root, wrap to the last item in the tree
+        if let Some(last_root) = self.tree_items.last() {
+            let last_root_path = vec![*last_root.identifier()];
+            return self.rightmost_descendant(last_root, last_root_path);
+        }
+
+        None
+    }
+
+    fn rightmost_descendant<'b>(
+        &self,
+        node: &'b TreeItem<'b, usize>,
+        mut path: Vec<usize>,
+    ) -> Option<(&'b TreeItem<'b, usize>, Vec<usize>)> {
+        // Keep going to the last child until we find a leaf
+        let mut current_node = node;
+
+        while let Some(last_child) = current_node.children().last() {
+            path.push(*last_child.identifier());
+            current_node = last_child;
+        }
+
+        Some((current_node, path))
+    }
+
     fn open_path(&mut self, path: &[usize]) {
         for i in 1..path.len() {
             let id = path[..i].to_vec();
@@ -680,12 +740,16 @@ impl<'a> App<'a> {
         }
     }
 
-    fn find_next_node_with_text(&mut self, search_text: String, start_node: &[usize]) {
-        // let start_selected = self.tree_state.selected().to_vec();
+    fn find_node_with_text(&mut self, search_text: String, start_node: &[usize], direction: SearchDirection) {
         let mut current_path = start_node.to_vec();
 
         loop {
-            if let Some((next, next_id_path)) = self.next_tree_item(&current_path) {
+            let next_result = match direction {
+                SearchDirection::Forward => self.next_tree_item(&current_path),
+                SearchDirection::Backward => self.prev_tree_item(&current_path),
+            };
+
+            if let Some((next, next_id_path)) = next_result {
                 let next_id = *next.identifier();
                 // If we've wrapped around to the starting position, we've searched everything
                 if next_id_path == start_node {
@@ -703,12 +767,20 @@ impl<'a> App<'a> {
 
                 current_path = next_id_path;
             } else {
-                self.handler_text = "break".to_string();
+                self.handler_text = "No more nodes".to_string();
                 return;
             }
         }
 
         self.handler_text = "No matching node found".to_string();
+    }
+
+    fn try_search(&mut self, dir: SearchDirection, start_node: &[usize]) {
+        if let Some(text) = &self.input_text {
+            self.find_node_with_text(text[1..].to_lowercase(), start_node, dir);
+        } else {
+            self.handler_text = "nothing to search for".to_string();
+        }
     }
 
     fn render_help_overlay(&self, area: Rect, buf: &mut Buffer) {
