@@ -848,6 +848,7 @@ impl<'a> Widget for &mut App<'a> {
         tree_widget.root.add_child(child1);
         tree_widget.root.add_child(tree_widget::TreeNode::new(4, "child4".to_string()));
         tree_widget.root.add_child(tree_widget::TreeNode::new(5, "child5".to_string()));
+        tree_widget.open_nodes.insert(0);
         let tree_renderer = tree_widget::TreeWidgetRenderer::new()
             .block(tree_block)
             .selection_style(Style::default().bg(Color::DarkGray));

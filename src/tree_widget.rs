@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -30,7 +32,8 @@ impl TreeNode {
 
 pub struct TreeWidget {
     pub root: TreeNode,
-    selected_id: usize,
+    pub selected_id: usize,
+    pub open_nodes: HashSet<usize>,
 }
 
 impl TreeWidget {
@@ -38,6 +41,16 @@ impl TreeWidget {
         Self {
             root: TreeNode::new(0, root_text),
             selected_id: 0,
+            open_nodes: HashSet::new(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn toggle(&mut self, node: &TreeNode) {
+        if self.open_nodes.contains(&node.id) {
+            self.open_nodes.remove(&node.id);
+        } else {
+            self.open_nodes.insert(node.id);
         }
     }
 }
@@ -81,8 +94,10 @@ impl<'a> TreeWidgetRenderer<'a> {
             node.text
         );
         Text::raw(node_text).style(style).render(area, buf);
-        for child in &node.children {
-            self.render_node(tree_area, buf, y, child, state, lvl + 1);
+        if state.open_nodes.contains(&node.id) {
+            for child in &node.children {
+                self.render_node(tree_area, buf, y, child, state, lvl + 1);
+            }
         }
     }
 }

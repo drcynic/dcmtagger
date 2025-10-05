@@ -2,6 +2,7 @@ use clap::Parser;
 
 mod app;
 mod dicom;
+mod tree_widget;
 
 use app::App;
 
