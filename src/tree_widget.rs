@@ -6,52 +6,86 @@ use ratatui::{
     text::Text,
     widgets::{StatefulWidget, Widget},
 };
+use slotmap::SlotMap;
 
 pub struct TreeNode {
-    id: usize,
     text: String,
-    children: Vec<TreeNode>,
-    parent_id: Option<usize>,
+    children: Vec<slotmap::DefaultKey>,
+    parent_id: Option<slotmap::DefaultKey>,
 }
 
 impl TreeNode {
-    pub fn new(id: usize, text: String) -> Self {
+    pub fn new(text: String) -> Self {
         Self {
-            id,
             text,
             children: Vec::new(),
             parent_id: None,
         }
     }
-
-    pub fn add_child(&mut self, mut child: TreeNode) {
-        child.parent_id = Some(self.id);
-        self.children.push(child);
-    }
 }
 
 pub struct TreeWidget {
-    pub root: TreeNode,
-    pub selected_id: usize,
-    pub open_nodes: HashSet<usize>,
+    pub root_id: slotmap::DefaultKey,
+    pub selected_id: slotmap::DefaultKey,
+    pub open_nodes: HashSet<slotmap::DefaultKey>,
+    pub nodes: SlotMap<slotmap::DefaultKey, TreeNode>,
 }
 
 impl TreeWidget {
     pub fn new(root_text: String) -> Self {
+        let mut nodes = SlotMap::new();
+        let root_id = nodes.insert(TreeNode::new(root_text));
         Self {
-            root: TreeNode::new(0, root_text),
-            selected_id: 0,
+            root_id,
+            selected_id: root_id,
             open_nodes: HashSet::new(),
+            nodes,
+        }
+    }
+
+    pub fn add_child(&mut self, text: &str, parent_id: slotmap::DefaultKey) -> slotmap::DefaultKey {
+        let mut child = TreeNode::new(text.to_string());
+        child.parent_id = Some(parent_id);
+        let child_id = self.nodes.insert(child);
+        let parent = self.nodes.get_mut(parent_id).unwrap();
+        parent.children.push(child_id);
+        child_id
+    }
+
+    #[allow(dead_code)]
+    pub fn is_open(&self, node_id: &slotmap::DefaultKey) -> bool {
+        self.open_nodes.contains(node_id)
+    }
+
+    #[allow(dead_code)]
+    pub fn toggle(&mut self, node_id: slotmap::DefaultKey) {
+        if self.open_nodes.contains(&node_id) {
+            self.open_nodes.remove(&node_id);
+        } else {
+            self.open_nodes.insert(node_id);
         }
     }
 
     #[allow(dead_code)]
-    pub fn toggle(&mut self, node: &TreeNode) {
-        if self.open_nodes.contains(&node.id) {
-            self.open_nodes.remove(&node.id);
-        } else {
-            self.open_nodes.insert(node.id);
+    pub fn open(&mut self, node_id: slotmap::DefaultKey) {
+        if !self.open_nodes.contains(&node_id) {
+            self.open_nodes.insert(node_id);
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn close(&mut self, node_id: slotmap::DefaultKey) {
+        if self.open_nodes.contains(&node_id) {
+            self.open_nodes.remove(&node_id);
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn next(&mut self) {}
+
+    #[allow(dead_code)]
+    pub fn prev(&mut self) {
+        //
     }
 }
 
@@ -78,15 +112,16 @@ impl<'a> TreeWidgetRenderer<'a> {
         self
     }
 
-    fn render_node(&self, tree_area: Rect, buf: &mut Buffer, y: &mut u16, node: &TreeNode, state: &TreeWidget, lvl: usize) {
+    fn render_node(&self, tree_area: Rect, buf: &mut Buffer, y: &mut u16, node_id: slotmap::DefaultKey, state: &TreeWidget, lvl: usize) {
         let area = Rect::new(tree_area.x, *y, tree_area.width, 1);
         *y += 1;
 
-        let style = if node.id == state.selected_id {
+        let style = if node_id == state.selected_id {
             self.highlight_style
         } else {
             ratatui::style::Style::default()
         };
+        let node = state.nodes.get(node_id).unwrap();
         let node_text = format!(
             "{}{}{}",
             "│  ".repeat(lvl.saturating_sub(1)),
@@ -94,9 +129,9 @@ impl<'a> TreeWidgetRenderer<'a> {
             node.text
         );
         Text::raw(node_text).style(style).render(area, buf);
-        if state.open_nodes.contains(&node.id) {
-            for child in &node.children {
-                self.render_node(tree_area, buf, y, child, state, lvl + 1);
+        if state.open_nodes.contains(&node_id) {
+            for child_id in &node.children {
+                self.render_node(tree_area, buf, y, *child_id, state, lvl + 1);
             }
         }
     }
@@ -110,25 +145,53 @@ impl<'a> StatefulWidget for TreeWidgetRenderer<'a> {
         self.block.clone().render(area, buf);
 
         let mut y = tree_area.y;
-        self.render_node(tree_area, buf, &mut y, &state.root, state, 0);
+        self.render_node(tree_area, buf, &mut y, state.root_id, state, 0);
     }
 }
 
 #[test]
 fn test_new_tree_widget() {
-    let widget = TreeWidget::new("root".to_string());
-    assert_eq!(widget.root.id, 0);
-    assert_eq!(widget.root.text, "root".to_string());
-    assert!(widget.root.parent_id.is_none());
-    assert_eq!(widget.selected_id, widget.root.id);
+    let tree_widget = TreeWidget::new("root".to_string());
+    let root_node = tree_widget.nodes.get(tree_widget.root_id).unwrap();
+    assert_eq!(root_node.text, "root".to_string());
+    assert!(root_node.parent_id.is_none());
+    assert_eq!(tree_widget.selected_id, tree_widget.root_id);
+    assert!(tree_widget.open_nodes.is_empty());
 }
 
 #[test]
 fn test_add_child() {
-    let mut widget = TreeWidget::new("root".to_string());
-    widget.root.add_child(TreeNode::new(1, "child".to_string()));
-    assert_eq!(widget.root.children.len(), 1);
-    assert_eq!(widget.root.children[0].id, 1);
-    assert_eq!(widget.root.children[0].text, "child");
-    assert_eq!(widget.root.children[0].parent_id, Some(0));
+    let mut tree_widget = TreeWidget::new("root".to_string());
+    let child_id = tree_widget.add_child("child", tree_widget.root_id);
+    let root_node = tree_widget.nodes.get(tree_widget.root_id).unwrap();
+    let child_node = tree_widget.nodes.get(child_id).unwrap();
+    assert_eq!(root_node.children.len(), 1);
+    assert_eq!(root_node.children[0], child_id);
+    assert_eq!(child_node.text, "child");
+    assert_eq!(child_node.parent_id, Some(tree_widget.root_id));
+}
+
+#[test]
+fn test_toggle_root() {
+    let mut tree_widget = TreeWidget::new("root".to_string());
+    tree_widget.add_child("child", tree_widget.root_id);
+    assert!(!tree_widget.is_open(&tree_widget.root_id));
+
+    tree_widget.toggle(tree_widget.root_id);
+    assert!(tree_widget.is_open(&tree_widget.root_id));
+}
+
+#[test]
+fn test_toggle_child() {
+    let mut tree_widget = TreeWidget::new("root".to_string());
+    let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
+    tree_widget.add_child("child2", child1_id);
+    tree_widget.add_child("child3", child1_id);
+    tree_widget.add_child("child4", tree_widget.root_id);
+    tree_widget.add_child("child5", tree_widget.root_id);
+    assert!(!tree_widget.is_open(&child1_id));
+
+    tree_widget.toggle(tree_widget.root_id);
+    tree_widget.toggle(child1_id);
+    assert!(tree_widget.is_open(&child1_id));
 }

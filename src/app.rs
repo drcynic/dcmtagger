@@ -840,15 +840,13 @@ impl<'a> Widget for &mut App<'a> {
         // StatefulWidget::render(tree, list_area, buf, &mut self.tree_state);
 
         let mut tree_widget = tree_widget::TreeWidget::new("root".to_string());
-        let mut child1 = tree_widget::TreeNode::new(1, "child1".to_string());
-        let child2 = tree_widget::TreeNode::new(2, "child2".to_string());
-        let child3 = tree_widget::TreeNode::new(3, "child3".to_string());
-        child1.add_child(child2);
-        child1.add_child(child3);
-        tree_widget.root.add_child(child1);
-        tree_widget.root.add_child(tree_widget::TreeNode::new(4, "child4".to_string()));
-        tree_widget.root.add_child(tree_widget::TreeNode::new(5, "child5".to_string()));
-        tree_widget.open_nodes.insert(0);
+        let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
+        tree_widget.add_child("child2", child1_id);
+        tree_widget.add_child("child3", child1_id);
+        tree_widget.add_child("child4", tree_widget.root_id);
+        tree_widget.add_child("child5", tree_widget.root_id);
+        tree_widget.open_nodes.insert(tree_widget.root_id);
+        tree_widget.open_nodes.insert(child1_id);
         let tree_renderer = tree_widget::TreeWidgetRenderer::new()
             .block(tree_block)
             .selection_style(Style::default().bg(Color::DarkGray));
