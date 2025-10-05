@@ -13,9 +13,10 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Padding, Paragraph, StatefulWidget, Widget},
 };
 use tui_textarea::{Input, TextArea};
-use tui_tree_widget::{Tree, TreeItem, TreeState};
+use tui_tree_widget::{TreeItem, TreeState};
 
 use crate::dicom::DicomData;
+use crate::tree_widget;
 
 #[derive(Debug, Default, PartialEq)]
 enum Mode {
@@ -831,12 +832,26 @@ impl<'a> Widget for &mut App<'a> {
         let tree_block = Block::bordered()
             .title(title.centered())
             .border_set(bottom_vert_border_set)
-            .padding(Padding::horizontal(1));
-        let tree = Tree::new(&self.tree_items)
-            .expect("all item identifiers are unique")
+            .padding(Padding::horizontal(0));
+        // let tree = Tree::new(&self.tree_items)
+        //     .expect("all item identifiers are unique")
+        //     .block(tree_block)
+        //     .highlight_style(Style::default().bg(Color::DarkGray));
+        // StatefulWidget::render(tree, list_area, buf, &mut self.tree_state);
+
+        let mut tree_widget = tree_widget::TreeWidget::new("root".to_string());
+        let mut child1 = tree_widget::TreeNode::new(1, "child1".to_string());
+        let child2 = tree_widget::TreeNode::new(2, "child2".to_string());
+        let child3 = tree_widget::TreeNode::new(3, "child3".to_string());
+        child1.add_child(child2);
+        child1.add_child(child3);
+        tree_widget.root.add_child(child1);
+        tree_widget.root.add_child(tree_widget::TreeNode::new(4, "child4".to_string()));
+        tree_widget.root.add_child(tree_widget::TreeNode::new(5, "child5".to_string()));
+        let tree_renderer = tree_widget::TreeWidgetRenderer::new()
             .block(tree_block)
-            .highlight_style(Style::default().bg(Color::DarkGray));
-        StatefulWidget::render(tree, list_area, buf, &mut self.tree_state);
+            .selection_style(Style::default().bg(Color::DarkGray));
+        StatefulWidget::render(tree_renderer, list_area, buf, &mut tree_widget);
 
         let state_block = Block::bordered()
             .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)

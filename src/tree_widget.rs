@@ -65,13 +65,25 @@ impl<'a> TreeWidgetRenderer<'a> {
         self
     }
 
-    fn render_node(&self, area: Rect, buf: &mut Buffer, node: &TreeNode, state: &TreeWidget) {
+    fn render_node(&self, tree_area: Rect, buf: &mut Buffer, y: &mut u16, node: &TreeNode, state: &TreeWidget, lvl: usize) {
+        let area = Rect::new(tree_area.x, *y, tree_area.width, 1);
+        *y += 1;
+
         let style = if node.id == state.selected_id {
             self.highlight_style
         } else {
             ratatui::style::Style::default()
         };
-        Text::raw(node.text.as_str()).style(style).render(area, buf);
+        let node_text = format!(
+            "{}{}{}",
+            "│  ".repeat(lvl.saturating_sub(1)),
+            "├──".repeat(if lvl == 0 { 0 } else { 1 }),
+            node.text
+        );
+        Text::raw(node_text).style(style).render(area, buf);
+        for child in &node.children {
+            self.render_node(tree_area, buf, y, child, state, lvl + 1);
+        }
     }
 }
 
@@ -82,21 +94,8 @@ impl<'a> StatefulWidget for TreeWidgetRenderer<'a> {
         let tree_area = self.block.inner(area);
         self.block.clone().render(area, buf);
 
-        let area = Rect {
-            x: tree_area.x,
-            y: tree_area.y,
-            width: tree_area.width,
-            height: 1,
-        };
-        self.render_node(area, buf, &state.root, state);
-
-        let area = Rect {
-            x: tree_area.x,
-            y: tree_area.y + 1,
-            width: tree_area.width,
-            height: 1,
-        };
-        self.render_node(area, buf, &state.root.children[0], state);
+        let mut y = tree_area.y;
+        self.render_node(tree_area, buf, &mut y, &state.root, state, 0);
     }
 }
 
