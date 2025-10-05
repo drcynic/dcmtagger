@@ -81,7 +81,42 @@ impl TreeWidget {
     }
 
     #[allow(dead_code)]
-    pub fn next(&mut self) {}
+    pub fn select_next(&mut self) {
+        if let Some(next_id) = self.next(self.selected_id) {
+            self.selected_id = next_id;
+        }
+    }
+
+    fn next(&self, cur_id: slotmap::DefaultKey) -> Option<slotmap::DefaultKey> {
+        let cur = self.nodes.get(cur_id).unwrap();
+        if !cur.children.is_empty() && self.open_nodes.contains(&self.selected_id) {
+            Some(cur.children[0])
+        } else {
+            let mut cur_id = self.selected_id;
+            let mut parent_id_opt = cur.parent_id;
+            loop {
+                if let Some(parent_id) = parent_id_opt {
+                    if let Some(sibling_id) = self.next_sibling(parent_id, cur_id) {
+                        return Some(sibling_id);
+                    }
+                    cur_id = parent_id;
+                    parent_id_opt = self.nodes.get(parent_id).unwrap().parent_id;
+                } else {
+                    return None;
+                }
+            }
+        }
+    }
+
+    fn next_sibling(&self, parent_id: slotmap::DefaultKey, cur_id: slotmap::DefaultKey) -> Option<slotmap::DefaultKey> {
+        let parent = self.nodes.get(parent_id).unwrap();
+        let index = parent.children.iter().position(|&id| id == cur_id).unwrap();
+        if index + 1 < parent.children.len() {
+            Some(parent.children[index + 1])
+        } else {
+            None
+        }
+    }
 
     #[allow(dead_code)]
     pub fn prev(&mut self) {
@@ -194,4 +229,85 @@ fn test_toggle_child() {
     tree_widget.toggle(tree_widget.root_id);
     tree_widget.toggle(child1_id);
     assert!(tree_widget.is_open(&child1_id));
+}
+
+#[test]
+fn test_next_on_closed_root() {
+    let mut tree_widget = TreeWidget::new("root".to_string());
+    tree_widget.add_child("child1", tree_widget.root_id);
+
+    assert_eq!(tree_widget.selected_id, tree_widget.root_id);
+    tree_widget.select_next();
+    assert_eq!(tree_widget.selected_id, tree_widget.root_id);
+}
+
+#[test]
+fn test_next_on_open_root() {
+    let mut tree_widget = TreeWidget::new("root".to_string());
+    let child_id = tree_widget.add_child("child", tree_widget.root_id);
+
+    assert_eq!(tree_widget.selected_id, tree_widget.root_id);
+    tree_widget.open(tree_widget.root_id);
+    tree_widget.select_next();
+    assert_eq!(tree_widget.selected_id, child_id);
+}
+
+#[test]
+fn test_next_for_closed_children() {
+    let mut tree_widget = TreeWidget::new("root".to_string());
+    let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
+    tree_widget.add_child("child2", child1_id);
+    let child3_id = tree_widget.add_child("child3", child1_id);
+    tree_widget.add_child("child4", child3_id);
+    let child5_id = tree_widget.add_child("child5", tree_widget.root_id);
+    let child6_id = tree_widget.add_child("child6", tree_widget.root_id);
+    tree_widget.open(tree_widget.root_id);
+
+    tree_widget.select_next();
+    assert_eq!(tree_widget.selected_id, child1_id);
+
+    tree_widget.select_next();
+    assert_eq!(tree_widget.selected_id, child5_id);
+
+    tree_widget.select_next();
+    assert_eq!(tree_widget.selected_id, child6_id);
+}
+
+#[test]
+fn test_next_for_opented_children() {
+    // root
+    // ├─child1
+    // │ ├─child2
+    // │ ├─child3
+    // │   ├─child4
+    // ├─child5
+    // ├─child6
+    let mut tree_widget = TreeWidget::new("root".to_string());
+    let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
+    let child2_id = tree_widget.add_child("child2", child1_id);
+    let child3_id = tree_widget.add_child("child3", child1_id);
+    let child4_id = tree_widget.add_child("child4", child3_id);
+    let child5_id = tree_widget.add_child("child5", tree_widget.root_id);
+    let child6_id = tree_widget.add_child("child6", tree_widget.root_id);
+    tree_widget.open(tree_widget.root_id);
+    tree_widget.open(child1_id);
+    tree_widget.open(child3_id);
+
+    tree_widget.select_next();
+    assert_eq!(tree_widget.selected_id, child1_id);
+
+    tree_widget.select_next();
+    assert_eq!(tree_widget.selected_id, child2_id);
+
+    tree_widget.select_next();
+    assert_eq!(tree_widget.selected_id, child3_id);
+
+    tree_widget.select_next();
+    assert_eq!(tree_widget.selected_id, child4_id);
+
+    tree_widget.select_next();
+    assert_eq!(tree_widget.selected_id, child5_id);
+
+    tree_widget.select_next();
+    assert_eq!(tree_widget.selected_id, child6_id);
 }
