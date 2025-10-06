@@ -87,15 +87,23 @@ impl TreeWidget {
         }
     }
 
-    pub fn select_next(&mut self) {
-        if let Some(next_id) = self.next(self.selected_id) {
-            self.selected_id = next_id;
+    pub fn select_next(&mut self, offset: usize) {
+        for _ in 0..offset {
+            if let Some(next_id) = self.next(self.selected_id) {
+                self.selected_id = next_id;
+            } else {
+                break;
+            }
         }
     }
 
-    pub fn select_prev(&mut self) {
-        if let Some(next_id) = self.prev(self.selected_id) {
-            self.selected_id = next_id;
+    pub fn select_prev(&mut self, offset: usize) {
+        for _ in 0..offset {
+            if let Some(next_id) = self.prev(self.selected_id) {
+                self.selected_id = next_id;
+            } else {
+                break;
+            }
         }
     }
 
@@ -289,7 +297,7 @@ mod tests {
         tree_widget.add_child("child1", tree_widget.root_id);
 
         assert_eq!(tree_widget.selected_id, tree_widget.root_id);
-        tree_widget.select_next();
+        tree_widget.select_next(1);
         assert_eq!(tree_widget.selected_id, tree_widget.root_id);
     }
 
@@ -300,7 +308,7 @@ mod tests {
 
         assert_eq!(tree_widget.selected_id, tree_widget.root_id);
         tree_widget.open(tree_widget.root_id);
-        tree_widget.select_next();
+        tree_widget.select_next(1);
         assert_eq!(tree_widget.selected_id, child_id);
     }
 
@@ -315,13 +323,13 @@ mod tests {
         let child6_id = tree_widget.add_child("child6", tree_widget.root_id);
         tree_widget.open(tree_widget.root_id);
 
-        tree_widget.select_next();
+        tree_widget.select_next(1);
         assert_eq!(tree_widget.selected_id, child1_id);
 
-        tree_widget.select_next();
+        tree_widget.select_next(1);
         assert_eq!(tree_widget.selected_id, child5_id);
 
-        tree_widget.select_next();
+        tree_widget.select_next(1);
         assert_eq!(tree_widget.selected_id, child6_id);
     }
 
@@ -345,22 +353,22 @@ mod tests {
         tree_widget.open(child1_id);
         tree_widget.open(child3_id);
 
-        tree_widget.select_next();
+        tree_widget.select_next(1);
         assert_eq!(tree_widget.selected_id, child1_id);
 
-        tree_widget.select_next();
+        tree_widget.select_next(1);
         assert_eq!(tree_widget.selected_id, child2_id);
 
-        tree_widget.select_next();
+        tree_widget.select_next(1);
         assert_eq!(tree_widget.selected_id, child3_id);
 
-        tree_widget.select_next();
+        tree_widget.select_next(1);
         assert_eq!(tree_widget.selected_id, child4_id);
 
-        tree_widget.select_next();
+        tree_widget.select_next(1);
         assert_eq!(tree_widget.selected_id, child5_id);
 
-        tree_widget.select_next();
+        tree_widget.select_next(1);
         assert_eq!(tree_widget.selected_id, child6_id);
     }
 
@@ -377,13 +385,13 @@ mod tests {
         tree_widget.open(tree_widget.root_id);
         assert_eq!(tree_widget.selected_id, child6_id);
 
-        tree_widget.select_prev();
+        tree_widget.select_prev(1);
         assert_eq!(tree_widget.selected_id, child5_id);
 
-        tree_widget.select_prev();
+        tree_widget.select_prev(1);
         assert_eq!(tree_widget.selected_id, child1_id);
 
-        tree_widget.select_prev();
+        tree_widget.select_prev(1);
         assert_eq!(tree_widget.selected_id, tree_widget.root_id);
     }
 
@@ -408,22 +416,22 @@ mod tests {
         tree_widget.open(child3_id);
         tree_widget.selected_id = child6_id;
 
-        tree_widget.select_prev();
+        tree_widget.select_prev(1);
         assert_eq!(tree_widget.selected_id, child5_id);
 
-        tree_widget.select_prev();
+        tree_widget.select_prev(1);
         assert_eq!(tree_widget.selected_id, child4_id);
 
-        tree_widget.select_prev();
+        tree_widget.select_prev(1);
         assert_eq!(tree_widget.selected_id, child3_id);
 
-        tree_widget.select_prev();
+        tree_widget.select_prev(1);
         assert_eq!(tree_widget.selected_id, child2_id);
 
-        tree_widget.select_prev();
+        tree_widget.select_prev(1);
         assert_eq!(tree_widget.selected_id, child1_id);
 
-        tree_widget.select_prev();
+        tree_widget.select_prev(1);
         assert_eq!(tree_widget.selected_id, tree_widget.root_id);
     }
 

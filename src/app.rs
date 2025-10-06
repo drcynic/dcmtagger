@@ -281,42 +281,47 @@ impl<'a> App<'a> {
     fn move_down(&mut self) {
         self.handler_text = "down".to_string();
         self.tree_state.key_down();
-        self.tree_widget.select_next();
+        self.tree_widget.select_next(1);
     }
 
     fn move_up(&mut self) {
         self.handler_text = "up".to_string();
         self.tree_state.key_up();
-        self.tree_widget.select_prev();
+        self.tree_widget.select_prev(1);
     }
 
     fn move_half_page_down(&mut self) {
         self.handler_text = "ctrl + d -> half page down".to_string();
         self.tree_state
             .select_relative(|c| c.map_or(0, |c| c.saturating_add(self.page_size / 2)));
+        self.tree_widget.select_next(self.page_size / 2);
     }
 
     fn move_half_page_up(&mut self) {
         self.handler_text = "ctrl + u -> half page up".to_string();
         self.tree_state
             .select_relative(|c| c.map_or(0, |c| c.saturating_sub(self.page_size / 2)));
+        self.tree_widget.select_prev(self.page_size / 2);
     }
 
     fn move_page_down(&mut self) {
         self.handler_text = "ctrl + f/page-down -> one screen down".to_string();
         self.tree_state
             .select_relative(|c| c.map_or(0, |c| c.saturating_add(self.page_size)));
+        self.tree_widget.select_next(self.page_size);
     }
 
     fn move_page_up(&mut self) {
         self.handler_text = "ctrl + b/page-up -> one screen up".to_string();
         self.tree_state
             .select_relative(|c| c.map_or(0, |c| c.saturating_sub(self.page_size)));
+        self.tree_widget.select_prev(self.page_size);
     }
 
     fn move_to_first(&mut self) {
         self.handler_text = "g -> move to first".to_string();
         self.tree_state.select_first();
+        self.tree_widget.selected_id = self.tree_widget.root_id;
     }
 
     fn move_to_last(&mut self) {
