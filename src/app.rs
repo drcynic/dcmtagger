@@ -88,7 +88,7 @@ impl<'a> App<'a> {
 
     pub fn draw(&mut self, frame: &mut Frame) {
         let [list_area, _, _] = App::layouted_areas(frame.area());
-        self.page_size = list_area.height.saturating_sub(4) as usize;
+        self.page_size = list_area.height.saturating_sub(2) as usize;
 
         frame.render_widget(self, frame.area());
     }
