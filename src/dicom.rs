@@ -7,6 +7,8 @@ use dicom_core::{Length, Tag};
 use dicom_object::InMemDicomObject;
 use tui_tree_widget::TreeItem;
 
+use crate::tree_widget;
+
 pub type TagElement = dicom_core::DataElement<dicom_object::InMemDicomObject, Vec<u8>>;
 
 #[derive(Debug, Default)]
@@ -58,6 +60,38 @@ impl DicomData {
             datasets_with_filename,
             num_values_and_max_length_by_tag,
         })
+    }
+
+    pub fn tree_sorted_by_filename2(&self) -> tree_widget::TreeWidget {
+        let mut tree_widget = tree_widget::TreeWidget::new(self.root_dir.display().to_string());
+
+        for entry in &self.datasets_with_filename {
+            let file_node_id = tree_widget.add_child(&entry.filename, tree_widget.root_id);
+            let mut current_group_node_id = file_node_id;
+            let mut current_group = 0u16;
+
+            for elem in entry.dataset.iter() {
+                let tag = elem.header().tag;
+
+                if current_group != tag.group() {
+                    current_group = tag.group();
+                    let group_text = format!("{:04x}", current_group);
+                    current_group_node_id = tree_widget.add_child(&group_text, file_node_id);
+                }
+
+                let element_text = format!(
+                    "{:04x} {} ({}, {}): {}",
+                    tag.element(),
+                    get_tag_name(elem),
+                    elem.vr(),
+                    elem.header().len,
+                    get_value_string(elem)
+                );
+                tree_widget.add_child(&element_text, current_group_node_id);
+            }
+        }
+
+        tree_widget
     }
 
     pub fn tree_sorted_by_filename(&self) -> (tui_tree_widget::TreeItem<'static, usize>, BTreeMap<usize, String>) {

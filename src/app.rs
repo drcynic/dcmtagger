@@ -60,13 +60,7 @@ impl<'a> App<'a> {
         let mut text_area = TextArea::new(Vec::new());
         text_area.set_cursor_style(Style::default());
 
-        let mut tree_widget = tree_widget::TreeWidget::new("root".to_string());
-        let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
-        tree_widget.add_child("child2", child1_id);
-        let child3_id = tree_widget.add_child("child3", child1_id);
-        tree_widget.add_child("child4", child3_id);
-        tree_widget.add_child("child5", tree_widget.root_id);
-        tree_widget.add_child("child6", tree_widget.root_id);
+        let mut tree_widget = dicom_data.tree_sorted_by_filename2();
         tree_widget.open(tree_widget.root_id);
 
         Ok(App {
