@@ -190,10 +190,15 @@ impl<'a> TreeWidgetRenderer<'a> {
         };
         let node = state.nodes.get(node_id).unwrap();
         let node_text = format!(
-            "{}{}{}",
+            "{}{}{}{}",
             "│  ".repeat(lvl.saturating_sub(1)),
             "├──".repeat(if lvl == 0 { 0 } else { 1 }),
-            node.text
+            node.text,
+            if !node.children.is_empty() && node.text.chars().last().unwrap() != '/' {
+                "/"
+            } else {
+                ""
+            }
         );
         Text::raw(node_text).style(style).render(area, buf);
         if state.open_nodes.contains(&node_id) {
