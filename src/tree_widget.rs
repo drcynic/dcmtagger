@@ -180,6 +180,10 @@ impl<'a> TreeWidgetRenderer<'a> {
     }
 
     fn render_node(&self, tree_area: Rect, buf: &mut Buffer, y: &mut u16, node_id: slotmap::DefaultKey, state: &TreeWidget, lvl: usize) {
+        if *y == tree_area.y + tree_area.height {
+            return;
+        }
+
         let area = Rect::new(tree_area.x, *y, tree_area.width, 1);
         *y += 1;
 
@@ -194,7 +198,7 @@ impl<'a> TreeWidgetRenderer<'a> {
             "│  ".repeat(lvl.saturating_sub(1)),
             "├──".repeat(if lvl == 0 { 0 } else { 1 }),
             node.text,
-            if !node.children.is_empty() && node.text.chars().last().unwrap() != '/' {
+            if !node.children.is_empty() && !node.text.ends_with('/') {
                 "/"
             } else {
                 ""
