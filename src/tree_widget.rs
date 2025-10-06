@@ -209,11 +209,7 @@ impl<'a> TreeWidgetRenderer<'a> {
             "│  ".repeat(lvl.saturating_sub(1)),
             if lvl == 0 { "" } else { "├──" },
             node.text,
-            if !node.children.is_empty() && !node.text.ends_with('/') {
-                "/"
-            } else {
-                ""
-            }
+            if !node.children.is_empty() { "/" } else { "" }
         );
         Text::raw(node_text).style(style).render(area, buf);
     }

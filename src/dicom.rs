@@ -109,7 +109,7 @@ impl DicomData {
             for elem in entry.dataset.iter() {
                 let tag = elem.header().tag;
                 let group_node_id = group_nodes_by_tag_group.entry(tag.group()).or_insert_with(|| {
-                    let group_tag_text = format!("{:04x}/", tag.group());
+                    let group_tag_text = format!("{:04x}", tag.group());
                     tree_widget.add_child(&group_tag_text, root_id)
                 });
                 let (num_values, max_length) = self.num_values_and_max_length_by_tag[&tag];
