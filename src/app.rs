@@ -62,6 +62,9 @@ impl<'a> App<'a> {
 
         let mut tree_widget = dicom_data.tree_sorted_by_filename2();
         tree_widget.open(tree_widget.root_id);
+        // let root_node = tree_widget.nodes.get(tree_widget.root_id).unwrap();
+        // tree_widget.visible_start_id = root_node.children[180];
+        // tree_widget.selected_id = root_node.children[180];
 
         Ok(App {
             input_path,
@@ -232,17 +235,23 @@ impl<'a> App<'a> {
     }
 
     fn sort_by_filename(&mut self) {
+        // old, !todo: remove
         let (root_item, element_texts_by_id) = self.dicom_data.tree_sorted_by_filename();
         self.tree_state = TreeState::default();
         self.tree_state.select(vec![*root_item.identifier()]);
         self.tree_state.open(vec![*root_item.identifier()]);
         self.tree_items = vec![root_item];
         self.element_texts_by_id = element_texts_by_id;
+
+        // new
+        self.tree_widget = self.dicom_data.tree_sorted_by_filename2();
+        self.tree_widget.open(self.tree_widget.root_id);
         self.handler_text = "sorted by filename".to_string();
     }
 
-    fn sort_by_tag(&mut self, min_diffs: usize) {
-        let (root_item, element_texts_by_id) = self.dicom_data.tree_sorted_by_tag(min_diffs);
+    fn sort_by_tag(&mut self, min_diff: usize) {
+        // old, !todo: remove
+        let (root_item, element_texts_by_id) = self.dicom_data.tree_sorted_by_tag(min_diff);
         self.tree_state = TreeState::default();
         self.tree_state.open(vec![*root_item.identifier()]);
         self.tree_state.select(vec![*root_item.identifier()]);
@@ -252,7 +261,17 @@ impl<'a> App<'a> {
         });
         self.tree_items = vec![root_item];
         self.element_texts_by_id = element_texts_by_id;
-        if min_diffs == 0 {
+
+        // new
+        self.tree_widget = self.dicom_data.tree_sorted_by_tag2(min_diff);
+        self.tree_widget.open(self.tree_widget.root_id);
+        let root_node = self.tree_widget.nodes.get(self.tree_widget.root_id).unwrap();
+        let children = root_node.children.clone();
+        for child_id in children {
+            self.tree_widget.open(child_id);
+        }
+
+        if min_diff == 0 {
             self.handler_text = "sorted by tag".to_string();
         } else {
             self.handler_text = "sorted by tag, displaying only different tags".to_string();

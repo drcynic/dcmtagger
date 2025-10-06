@@ -94,6 +94,57 @@ impl DicomData {
         tree_widget
     }
 
+    pub fn tree_sorted_by_tag2(&self, min_diff: usize) -> tree_widget::TreeWidget {
+        if self.datasets_with_filename.len() == 1 {
+            return self.tree_sorted_by_filename2();
+        }
+
+        let mut tree_widget = tree_widget::TreeWidget::new(self.root_dir.display().to_string());
+        let root_id = tree_widget.root_id;
+
+        let mut group_nodes_by_tag_group: BTreeMap<u16, slotmap::DefaultKey> = BTreeMap::new();
+        let mut tag_nodes_id_by_tag: BTreeMap<Tag, slotmap::DefaultKey> = BTreeMap::new();
+
+        for entry in &self.datasets_with_filename {
+            for elem in entry.dataset.iter() {
+                let tag = elem.header().tag;
+                let group_node_id = group_nodes_by_tag_group.entry(tag.group()).or_insert_with(|| {
+                    let group_tag_text = format!("{:04x}/", tag.group());
+                    tree_widget.add_child(&group_tag_text, root_id)
+                });
+                let (num_values, max_length) = self.num_values_and_max_length_by_tag[&tag];
+                if num_values > min_diff {
+                    let tag_node_id = tag_nodes_id_by_tag.entry(tag).or_insert_with(|| {
+                        let tag_name = get_tag_name(elem);
+                        let value_lengths_text = if max_length.is_some() {
+                            String::new() // will be done per element
+                        } else {
+                            format!(", {}", elem.header().len)
+                        };
+                        let tag_text = format!("{:04x} {} ({}{})", tag.element(), tag_name, elem.vr(), value_lengths_text);
+                        tree_widget.add_child(&tag_text, *group_node_id)
+                    });
+                    let value = get_value_string(elem);
+                    let element_len = elem.header().len;
+                    let element_len = if element_len.0 == Length::UNDEFINED.0 {
+                        5
+                    } else {
+                        element_len.0 as usize
+                    };
+                    let field_width = if let Some(max_length) = max_length {
+                        max_length as usize
+                    } else {
+                        element_len
+                    };
+                    let element_text = format!("{:<width$}[{}] - {}", value, element_len, &entry.filename, width = field_width);
+                    tree_widget.add_child(&element_text, *tag_node_id);
+                }
+            }
+        }
+
+        tree_widget
+    }
+
     pub fn tree_sorted_by_filename(&self) -> (tui_tree_widget::TreeItem<'static, usize>, BTreeMap<usize, String>) {
         let mut root_node = TreeItem::new(0usize, self.root_dir.display().to_string(), Vec::new()).expect("valid root");
         let mut element_texts_by_id = BTreeMap::new();
@@ -287,7 +338,7 @@ mod tests {
 
     #[test]
     fn test_tree_sorted_by_tag_timing() {
-        let test_path = Path::new("calib-phantom-s2-dvt");
+        let test_path = Path::new("spine-phantom");
 
         // Skip test if path doesn't exist
         if !test_path.exists() {
@@ -312,7 +363,7 @@ mod tests {
 
         // Measure tree_sorted_by_tag execution time
         let tree_start = Instant::now();
-        let _tree = dicom_data.tree_sorted_by_tag(0);
+        let _tree = dicom_data.tree_sorted_by_tag2(0);
         let tree_duration = tree_start.elapsed();
         println!("tree_sorted_by_tag() execution time: {:?}", tree_duration);
 
