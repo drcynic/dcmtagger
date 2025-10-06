@@ -8,6 +8,7 @@ use ratatui::{
 };
 use slotmap::SlotMap;
 
+#[derive(Debug, Default)]
 pub struct TreeNode {
     text: String,
     children: Vec<slotmap::DefaultKey>,
@@ -24,6 +25,7 @@ impl TreeNode {
     }
 }
 
+#[derive(Debug, Default)]
 pub struct TreeWidget {
     pub root_id: slotmap::DefaultKey,
     pub selected_id: slotmap::DefaultKey,
@@ -57,7 +59,10 @@ impl TreeWidget {
         self.open_nodes.contains(node_id)
     }
 
-    #[allow(dead_code)]
+    pub fn toggle_selected(&mut self) {
+        self.toggle(self.selected_id);
+    }
+
     pub fn toggle(&mut self, node_id: slotmap::DefaultKey) {
         if self.open_nodes.contains(&node_id) {
             self.open_nodes.remove(&node_id);

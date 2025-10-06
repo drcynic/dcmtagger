@@ -36,6 +36,7 @@ enum SearchDirection {
 pub struct App<'a> {
     input_path: &'a str,
     dicom_data: DicomData,
+    tree_widget: tree_widget::TreeWidget,
     tree_items: Vec<TreeItem<'static, usize>>,
     element_texts_by_id: BTreeMap<usize, String>,
     tree_state: TreeState<usize>,
@@ -59,9 +60,19 @@ impl<'a> App<'a> {
         let mut text_area = TextArea::new(Vec::new());
         text_area.set_cursor_style(Style::default());
 
+        let mut tree_widget = tree_widget::TreeWidget::new("root".to_string());
+        let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
+        tree_widget.add_child("child2", child1_id);
+        let child3_id = tree_widget.add_child("child3", child1_id);
+        tree_widget.add_child("child4", child3_id);
+        tree_widget.add_child("child5", tree_widget.root_id);
+        tree_widget.add_child("child6", tree_widget.root_id);
+        tree_widget.open(tree_widget.root_id);
+
         Ok(App {
             input_path,
             dicom_data,
+            tree_widget,
             tree_items: vec![root_item],
             element_texts_by_id,
             tree_state,
@@ -257,11 +268,13 @@ impl<'a> App<'a> {
     fn move_down(&mut self) {
         self.handler_text = "down".to_string();
         self.tree_state.key_down();
+        self.tree_widget.select_next();
     }
 
     fn move_up(&mut self) {
         self.handler_text = "up".to_string();
         self.tree_state.key_up();
+        self.tree_widget.select_prev();
     }
 
     fn move_half_page_down(&mut self) {
@@ -301,6 +314,7 @@ impl<'a> App<'a> {
     fn toggle_node(&mut self) {
         self.handler_text = "toggled node".to_string();
         self.tree_state.toggle_selected();
+        self.tree_widget.toggle_selected();
     }
 
     fn expand_current_recursive(&mut self) {
@@ -839,18 +853,18 @@ impl<'a> Widget for &mut App<'a> {
         //     .highlight_style(Style::default().bg(Color::DarkGray));
         // StatefulWidget::render(tree, list_area, buf, &mut self.tree_state);
 
-        let mut tree_widget = tree_widget::TreeWidget::new("root".to_string());
-        let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
-        tree_widget.add_child("child2", child1_id);
-        tree_widget.add_child("child3", child1_id);
-        tree_widget.add_child("child4", tree_widget.root_id);
-        tree_widget.add_child("child5", tree_widget.root_id);
-        tree_widget.open_nodes.insert(tree_widget.root_id);
-        tree_widget.open_nodes.insert(child1_id);
+        // let mut tree_widget = tree_widget::TreeWidget::new("root".to_string());
+        // let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
+        // tree_widget.add_child("child2", child1_id);
+        // tree_widget.add_child("child3", child1_id);
+        // tree_widget.add_child("child4", tree_widget.root_id);
+        // tree_widget.add_child("child5", tree_widget.root_id);
+        // tree_widget.open_nodes.insert(tree_widget.root_id);
+        // tree_widget.open_nodes.insert(child1_id);
         let tree_renderer = tree_widget::TreeWidgetRenderer::new()
             .block(tree_block)
             .selection_style(Style::default().bg(Color::DarkGray));
-        StatefulWidget::render(tree_renderer, list_area, buf, &mut tree_widget);
+        StatefulWidget::render(tree_renderer, list_area, buf, &mut self.tree_widget);
 
         let state_block = Block::bordered()
             .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
