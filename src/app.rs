@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::{io, path::Path};
 
@@ -13,7 +12,6 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Padding, Paragraph, StatefulWidget, Widget},
 };
 use tui_textarea::{Input, TextArea};
-use tui_tree_widget::{TreeItem, TreeState};
 
 use crate::dicom::DicomData;
 use crate::tree_widget;
@@ -29,7 +27,7 @@ enum Mode {
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum SearchDirection {
     Forward,
-    Backward,
+    _Backward,
 }
 
 #[derive(Debug, Default)]
@@ -37,9 +35,6 @@ pub struct App<'a> {
     input_path: &'a str,
     dicom_data: DicomData,
     tree_widget: tree_widget::TreeWidget,
-    tree_items: Vec<TreeItem<'static, usize>>,
-    element_texts_by_id: BTreeMap<usize, String>,
-    tree_state: TreeState<usize>,
     text_area: TextArea<'a>,
     mode: Mode,
     page_size: usize,
@@ -53,26 +48,16 @@ pub struct App<'a> {
 impl<'a> App<'a> {
     pub fn new(input_path: &'a str) -> anyhow::Result<Self> {
         let dicom_data = DicomData::new(Path::new(input_path))?;
-        let (root_item, element_texts_by_id) = dicom_data.tree_sorted_by_filename();
-        let mut tree_state = TreeState::default();
-        tree_state.select(vec![*root_item.identifier()]);
-        tree_state.open(vec![*root_item.identifier()]);
         let mut text_area = TextArea::new(Vec::new());
         text_area.set_cursor_style(Style::default());
 
-        let mut tree_widget = dicom_data.tree_sorted_by_filename2();
+        let mut tree_widget = dicom_data.tree_sorted_by_filename();
         tree_widget.open(tree_widget.root_id);
-        // let root_node = tree_widget.nodes.get(tree_widget.root_id).unwrap();
-        // tree_widget.visible_start_id = root_node.children[180];
-        // tree_widget.selected_id = root_node.children[180];
 
         Ok(App {
             input_path,
             dicom_data,
             tree_widget,
-            tree_items: vec![root_item],
-            element_texts_by_id,
-            tree_state,
             text_area,
             ..Default::default()
         })
@@ -149,12 +134,12 @@ impl<'a> App<'a> {
                 KeyCode::Right | KeyCode::Char('l') => self.move_into_tree(),
                 KeyCode::Left | KeyCode::Char('h') => self.move_up_tree(),
                 KeyCode::Char('N') => {
-                    let start_node = self.tree_state.selected().to_vec();
-                    self.try_search(SearchDirection::Backward, &start_node);
+                    // let start_node = self.tree_state.selected().to_vec();
+                    // self.try_search(SearchDirection::Backward, &start_node);
                 }
                 KeyCode::Char('n') => {
-                    let start_node = self.tree_state.selected().to_vec();
-                    self.try_search(SearchDirection::Forward, &start_node);
+                    // let start_node = self.tree_state.selected().to_vec();
+                    // self.try_search(SearchDirection::Forward, &start_node);
                 }
                 _ => {}
             },
@@ -223,7 +208,7 @@ impl<'a> App<'a> {
 
     fn setup_input_edit(&mut self, start_char: char) {
         self.mode = Mode::Search;
-        self.search_start_node_id = self.tree_state.selected().to_vec();
+        // self.search_start_node_id = self.tree_state.selected().to_vec();
         let start_text = vec![if let Some(text) = &self.input_text {
             text.to_string()
         } else {
@@ -235,35 +220,13 @@ impl<'a> App<'a> {
     }
 
     fn sort_by_filename(&mut self) {
-        // old, !todo: remove
-        let (root_item, element_texts_by_id) = self.dicom_data.tree_sorted_by_filename();
-        self.tree_state = TreeState::default();
-        self.tree_state.select(vec![*root_item.identifier()]);
-        self.tree_state.open(vec![*root_item.identifier()]);
-        self.tree_items = vec![root_item];
-        self.element_texts_by_id = element_texts_by_id;
-
-        // new
-        self.tree_widget = self.dicom_data.tree_sorted_by_filename2();
+        self.tree_widget = self.dicom_data.tree_sorted_by_filename();
         self.tree_widget.open(self.tree_widget.root_id);
         self.handler_text = "sorted by filename".to_string();
     }
 
     fn sort_by_tag(&mut self, min_diff: usize) {
-        // old, !todo: remove
-        let (root_item, element_texts_by_id) = self.dicom_data.tree_sorted_by_tag(min_diff);
-        self.tree_state = TreeState::default();
-        self.tree_state.open(vec![*root_item.identifier()]);
-        self.tree_state.select(vec![*root_item.identifier()]);
-        // open all groups
-        root_item.children().iter().for_each(|c| {
-            self.tree_state.open(vec![*root_item.identifier(), *c.identifier()]);
-        });
-        self.tree_items = vec![root_item];
-        self.element_texts_by_id = element_texts_by_id;
-
-        // new
-        self.tree_widget = self.dicom_data.tree_sorted_by_tag2(min_diff);
+        self.tree_widget = self.dicom_data.tree_sorted_by_tag(min_diff);
         self.tree_widget.open(self.tree_widget.root_id);
         let root_node = self.tree_widget.nodes.get(self.tree_widget.root_id).unwrap();
         let children = root_node.children.clone();
@@ -280,539 +243,124 @@ impl<'a> App<'a> {
 
     fn move_down(&mut self) {
         self.handler_text = "down".to_string();
-        self.tree_state.key_down();
         self.tree_widget.select_next(1);
     }
 
     fn move_up(&mut self) {
         self.handler_text = "up".to_string();
-        self.tree_state.key_up();
         self.tree_widget.select_prev(1);
     }
 
     fn move_half_page_down(&mut self) {
         self.handler_text = "ctrl + d -> half page down".to_string();
-        self.tree_state
-            .select_relative(|c| c.map_or(0, |c| c.saturating_add(self.page_size / 2)));
         self.tree_widget.select_next(self.page_size / 2);
     }
 
     fn move_half_page_up(&mut self) {
         self.handler_text = "ctrl + u -> half page up".to_string();
-        self.tree_state
-            .select_relative(|c| c.map_or(0, |c| c.saturating_sub(self.page_size / 2)));
         self.tree_widget.select_prev(self.page_size / 2);
     }
 
     fn move_page_down(&mut self) {
         self.handler_text = "ctrl + f/page-down -> one screen down".to_string();
-        self.tree_state
-            .select_relative(|c| c.map_or(0, |c| c.saturating_add(self.page_size)));
         self.tree_widget.select_next(self.page_size);
     }
 
     fn move_page_up(&mut self) {
         self.handler_text = "ctrl + b/page-up -> one screen up".to_string();
-        self.tree_state
-            .select_relative(|c| c.map_or(0, |c| c.saturating_sub(self.page_size)));
         self.tree_widget.select_prev(self.page_size);
     }
 
     fn move_to_first(&mut self) {
         self.handler_text = "g -> move to first".to_string();
-        self.tree_state.select_first();
         self.tree_widget.selected_id = self.tree_widget.root_id;
     }
 
     fn move_to_last(&mut self) {
         self.handler_text = "G -> move to last".to_string();
-        self.tree_state.select_last();
+        todo!()
     }
 
     fn toggle_node(&mut self) {
         self.handler_text = "toggled node".to_string();
-        self.tree_state.toggle_selected();
         self.tree_widget.toggle_selected();
     }
 
     fn expand_current_recursive(&mut self) {
         self.handler_text = "shift + E -> expand current node recursively".to_string();
-        let selected = self.tree_state.selected().to_vec();
-        self.handler_text = format!("selected: {:?}", &selected);
-        if selected.is_empty() {
-            return;
-        }
-
-        self.expand_node_recursive(selected);
+        todo!()
     }
 
     fn collapse_current_recursive(&mut self) {
         self.handler_text = "shift + C -> collapse current node recursively".to_string();
-        let selected = self.tree_state.selected().to_vec();
-        self.handler_text = format!("selected: {:?}", &selected);
-
-        if selected.len() == 1 {
-            self.tree_state.close_all();
-        } else if selected.len() > 1 {
-            self.collapse_node_recursive(selected);
-        }
-    }
-
-    fn expand_node_recursive(&mut self, node_path: Vec<usize>) {
-        let all_paths = self.collect_all_descendant_paths(node_path);
-        for path in all_paths {
-            self.tree_state.open(path);
-        }
-    }
-
-    fn collapse_node_recursive(&mut self, node_path: Vec<usize>) {
-        let all_paths = self.collect_all_descendant_paths(node_path);
-        for path in all_paths.into_iter().rev() {
-            self.tree_state.close(&path);
-        }
-    }
-
-    fn collect_all_descendant_paths(&self, node_path: Vec<usize>) -> Vec<Vec<usize>> {
-        let mut all_paths = Vec::new();
-        self.collect_paths_from_tree(&node_path, &mut all_paths);
-        all_paths
-    }
-
-    fn collect_paths_from_tree(&self, target_path: &[usize], all_paths: &mut Vec<Vec<usize>>) {
-        if target_path.len() == 1 {
-            // Found the target item, collect it and all descendants
-            let path = vec![*self.tree_items[0].identifier()];
-            all_paths.push(path.clone());
-            Self::collect_children_paths(&self.tree_items[0], &path, all_paths);
-        } else {
-            // Continue searching in children
-            Self::collect_paths_from_children(self.tree_items[0].children(), &target_path[1..], &[target_path[0]], all_paths);
-        }
-    }
-
-    fn collect_paths_from_children(
-        children: &[TreeItem<usize>],
-        target_path: &[usize],
-        current_path: &[usize],
-        all_paths: &mut Vec<Vec<usize>>,
-    ) {
-        for child in children {
-            if child.identifier() == &target_path[0] {
-                let mut child_path = current_path.to_vec();
-                child_path.push(*child.identifier());
-
-                if target_path.len() == 1 {
-                    // Found the target, collect it and all descendants
-                    all_paths.push(child_path.clone());
-                    Self::collect_children_paths(child, &child_path, all_paths);
-                } else {
-                    // Continue searching deeper
-                    Self::collect_paths_from_children(child.children(), &target_path[1..], &child_path, all_paths);
-                }
-                break;
-            }
-        }
-    }
-
-    fn collect_children_paths(item: &TreeItem<usize>, item_path: &[usize], all_paths: &mut Vec<Vec<usize>>) {
-        for child in item.children() {
-            let mut child_path = item_path.to_vec();
-            child_path.push(*child.identifier());
-            all_paths.push(child_path.clone());
-            Self::collect_children_paths(child, &child_path, all_paths);
-        }
+        todo!()
     }
 
     fn move_to_prev_sibling(&mut self) {
         self.handler_text = "K/shift+↑ -> move to previous sibling".to_string();
-        self.move_to_sibling_by_direction(true);
         self.tree_widget.select_prev_sibling();
     }
 
     fn move_to_next_sibling(&mut self) {
         self.handler_text = "J/shift+↓ -> move to next sibling".to_string();
-        self.move_to_sibling_by_direction(false);
         self.tree_widget.select_next_sibling();
-    }
-
-    fn move_to_sibling_by_direction(&mut self, move_up: bool) {
-        let selected = self.tree_state.selected();
-        if selected.len() <= 1 {
-            return;
-        }
-
-        // Find siblings at current level
-        let parent_path = &selected[..selected.len() - 1];
-        let current_id = &selected[selected.len() - 1];
-
-        // Find parent item using tree traversal
-        if let Some(siblings) = self.find_siblings_at_path(parent_path) {
-            let current_idx = siblings.iter().position(|item| item.identifier() == current_id);
-
-            if let Some(current_idx) = current_idx {
-                let target_idx = if move_up {
-                    if current_idx > 0 {
-                        current_idx - 1
-                    } else {
-                        return;
-                    }
-                } else if current_idx + 1 < siblings.len() {
-                    current_idx + 1
-                } else {
-                    return;
-                };
-
-                let mut target_path = parent_path.to_vec();
-                target_path.push(*siblings[target_idx].identifier());
-                self.tree_state.select(target_path);
-            }
-        }
-    }
-
-    fn find_siblings_at_path(&self, path: &[usize]) -> Option<&[TreeItem<'_, usize>]> {
-        if path.is_empty() {
-            return Some(self.tree_items.as_slice());
-        }
-
-        let mut current_items: &[TreeItem<usize>] = self.tree_items.as_slice();
-
-        for path_segment in path {
-            if let Some(item) = current_items.iter().find(|item| item.identifier() == path_segment) {
-                current_items = item.children();
-            } else {
-                return None;
-            }
-        }
-
-        Some(current_items)
     }
 
     #[allow(dead_code)]
     fn open_all(&mut self) {
         self.handler_text = "shift + E -> expand all".to_string();
-        let flat = self.tree_state.flatten(&self.tree_items);
-        self.handler_text = format!("flat size: {}", flat.len());
-
-        flat.iter().for_each(|node| {
-            self.tree_state.open(node.identifier.clone());
-        });
+        todo!()
     }
 
     #[allow(dead_code)]
     fn close_all(&mut self) {
         self.handler_text = "shift + C -> collapse all".to_string();
-        self.tree_state.close_all();
+        todo!()
     }
 
     fn move_into_tree(&mut self) {
         self.handler_text = "l/→ -> move into tree".to_string();
-        self.tree_state.key_right();
+        todo!()
     }
 
     fn move_up_tree(&mut self) {
         self.handler_text = "h/← -> move up tree".to_string();
-        self.tree_state.key_left();
+        todo!()
     }
 
     fn move_to_parent(&mut self) {
         self.handler_text = "shift+H/shift+← -> move to parent".to_string();
-
-        let selected = self.tree_state.selected();
-        if selected.len() <= 1 {
-            return; // Already at root or no selection
-        }
-
-        // Move to parent by removing the last element from the path
-        self.tree_state.select(selected[..selected.len() - 1].to_vec());
+        todo!()
     }
 
     fn move_to_next_child(&mut self) {
         self.handler_text = "shift+L/shift+→ -> move to next child".to_string();
-
-        let selected = self.tree_state.selected().to_vec();
-
-        // Extract needed information before doing mutable operations
-        let has_children_and_first_child = self
-            .tree_item_for_visible_id(&selected)
-            .filter(|item| !item.children().is_empty())
-            .and_then(|item| item.children().first().map(|first| *first.identifier()));
-
-        if let Some(first_child_id) = has_children_and_first_child {
-            // If current node is collapsed and has children, expand it first
-            if !self.tree_state.opened().contains(&selected) {
-                self.tree_state.open(selected.to_vec());
-            }
-
-            // Move to first child after expanding
-            let mut child_path = selected.to_vec();
-            child_path.push(first_child_id);
-            self.tree_state.select(child_path);
-        }
+        todo!()
     }
 
     fn move_to_first_sibling(&mut self) {
         self.handler_text = "0/^ -> move to first sibling".to_string();
-        self.move_to_sibling(true);
+        todo!()
     }
 
     fn move_to_last_sibling(&mut self) {
         self.handler_text = "$ -> move to last sibling".to_string();
-        self.move_to_sibling(false);
-    }
-
-    fn move_to_sibling(&mut self, is_first: bool) {
-        let selected = self.tree_state.selected();
-        if selected.len() <= 1 {
-            // At root level, move to first or last item
-            if is_first {
-                self.tree_state.select_first();
-            } else {
-                self.tree_state.select_last();
-            }
-            return;
-        }
-
-        // Get parent path
-        let parent_path = &selected[..selected.len() - 1];
-        let flat_items = self.tree_state.flatten(&self.tree_items);
-
-        // Find parent item
-        if let Some(parent_item) = flat_items.iter().find(|item| item.identifier == parent_path) {
-            let target_child = if is_first {
-                parent_item.item.children().first()
-            } else {
-                parent_item.item.children().last()
-            };
-
-            if let Some(target_child) = target_child {
-                let mut target_sibling_path = parent_path.to_vec();
-                target_sibling_path.push(*target_child.identifier());
-                self.tree_state.select(target_sibling_path);
-            }
-        }
+        todo!()
     }
 
     fn collapse_siblings(&mut self) {
         self.handler_text = "c -> collapse current node and siblings".to_string();
-        self.apply_on_siblings(|tree_state, path| {
-            if path.len() == 1 {
-                tree_state.close(&[path[0]]);
-            } else {
-                tree_state.close(&path);
-            }
-        });
+        todo!()
     }
 
     fn expand_siblings(&mut self) {
         self.handler_text = "e -> expand current node and siblings".to_string();
-        self.apply_on_siblings(|tree_state, path| {
-            tree_state.open(path);
-        });
+        todo!()
     }
 
-    fn apply_on_siblings<F>(&mut self, mut operation: F)
-    where
-        F: FnMut(&mut TreeState<usize>, Vec<usize>),
-    {
-        let selected = self.tree_state.selected();
-        if selected.is_empty() {
-            return;
-        }
-
-        if selected.len() == 1 {
-            // At root level, operate on all root items
-            for item in &self.tree_items {
-                operation(&mut self.tree_state, vec![*item.identifier()]);
-            }
-        } else {
-            // Find parent and operate on all its children (siblings)
-            let parent_path = &selected[..selected.len() - 1];
-            let flat_items = self.tree_state.flatten(&self.tree_items);
-
-            if let Some(parent_item) = flat_items.iter().find(|item| item.identifier == parent_path) {
-                let children_paths: Vec<_> = parent_item
-                    .item
-                    .children()
-                    .iter()
-                    .map(|child| {
-                        let mut child_path = parent_path.to_vec();
-                        child_path.push(*child.identifier());
-                        child_path
-                    })
-                    .collect();
-
-                for child_path in children_paths {
-                    operation(&mut self.tree_state, child_path);
-                }
-            }
-        }
-    }
-
-    fn tree_item_for_id(&self, id: &[usize]) -> Option<&TreeItem<'static, usize>> {
-        let mut tree: &[TreeItem<'_, usize>] = &self.tree_items;
-        for (depth, id_part) in id.iter().enumerate() {
-            if let Some(child) = tree.iter().find(|ti| ti.identifier() == id_part) {
-                tree = child.children();
-                if depth == id.len() - 1 {
-                    return Some(child);
-                }
-            } else {
-                // not found
-                break;
-            }
-        }
-        None
-    }
-
-    fn tree_item_for_visible_id(&self, id: &[usize]) -> Option<&TreeItem<'_, usize>> {
-        self.tree_state
-            .flatten(&self.tree_items)
-            .into_iter()
-            .find(|item| item.identifier == id)
-            .map(|i| i.item)
-    }
-
-    fn next_tree_item(&self, current_id: &[usize]) -> Option<(&TreeItem<'_, usize>, Vec<usize>)> {
-        let current = self.tree_item_for_id(current_id)?;
-
-        // If current node has children, return the first child
-        if let Some(child) = current.child(0) {
-            let mut child_path_id = current_id.to_vec();
-            child_path_id.push(*child.identifier());
-            return Some((child, child_path_id));
-        }
-
-        // No children, so we need to find the next sibling or go up the tree
-        let mut path_to_check = current_id.to_vec();
-
-        while !path_to_check.is_empty() {
-            let parent_id_path = &path_to_check[..path_to_check.len() - 1];
-
-            if let Some(parent) = self.tree_item_for_id(parent_id_path) {
-                let current_idx = parent
-                    .children()
-                    .iter()
-                    .position(|child| child.identifier() == path_to_check.last().unwrap())?;
-
-                // Check if there's a next sibling
-                if let Some(next_sibling) = parent.children().get(current_idx + 1) {
-                    let mut next_path = parent_id_path.to_vec();
-                    next_path.push(*next_sibling.identifier());
-                    return Some((next_sibling, next_path));
-                }
-
-                // No next sibling, go up one level and try again
-                path_to_check = parent_id_path.to_vec();
-            } else {
-                return Some((&self.tree_items[0], vec![0]));
-            }
-        }
-
-        None
-    }
-
-    fn prev_tree_item(&self, current_id: &[usize]) -> Option<(&TreeItem<'_, usize>, Vec<usize>)> {
-        let _current = self.tree_item_for_id(current_id)?;
-
-        // If current node is not the first child, find previous sibling and go to its rightmost descendant
-        if current_id.len() > 1 {
-            let parent_id_path = &current_id[..current_id.len() - 1];
-            if let Some(parent) = self.tree_item_for_id(parent_id_path) {
-                let current_idx = parent
-                    .children()
-                    .iter()
-                    .position(|child| child.identifier() == current_id.last().unwrap())?;
-
-                // If there's a previous sibling
-                if current_idx > 0 {
-                    let prev_sibling = parent.children().get(current_idx - 1)?;
-                    let mut prev_path = parent_id_path.to_vec();
-                    prev_path.push(*prev_sibling.identifier());
-
-                    // Go to the rightmost descendant of the previous sibling
-                    return self.rightmost_descendant(prev_sibling, prev_path);
-                }
-            }
-        }
-
-        // No previous sibling, so go to parent (if not at root)
-        if current_id.len() > 1 {
-            let parent_id_path = &current_id[..current_id.len() - 1];
-            if let Some(parent) = self.tree_item_for_id(parent_id_path) {
-                return Some((parent, parent_id_path.to_vec()));
-            }
-        }
-
-        // At root, wrap to the last item in the tree
-        if let Some(last_root) = self.tree_items.last() {
-            let last_root_path = vec![*last_root.identifier()];
-            return self.rightmost_descendant(last_root, last_root_path);
-        }
-
-        None
-    }
-
-    fn rightmost_descendant<'b>(
-        &self,
-        node: &'b TreeItem<'b, usize>,
-        mut path: Vec<usize>,
-    ) -> Option<(&'b TreeItem<'b, usize>, Vec<usize>)> {
-        // Keep going to the last child until we find a leaf
-        let mut current_node = node;
-
-        while let Some(last_child) = current_node.children().last() {
-            path.push(*last_child.identifier());
-            current_node = last_child;
-        }
-
-        Some((current_node, path))
-    }
-
-    fn open_path(&mut self, path: &[usize]) {
-        for i in 1..path.len() {
-            let id = path[..i].to_vec();
-            self.tree_state.open(id);
-        }
-    }
-
-    fn find_node_with_text(&mut self, search_text: String, start_node: &[usize], direction: SearchDirection) {
-        let mut current_path = start_node.to_vec();
-
-        loop {
-            let next_result = match direction {
-                SearchDirection::Forward => self.next_tree_item(&current_path),
-                SearchDirection::Backward => self.prev_tree_item(&current_path),
-            };
-
-            if let Some((next, next_id_path)) = next_result {
-                let next_id = *next.identifier();
-                // If we've wrapped around to the starting position, we've searched everything
-                if next_id_path == start_node {
-                    break;
-                }
-
-                if let Some(node_text) = self.element_texts_by_id.get(&next_id)
-                    && node_text.to_lowercase().contains(&search_text)
-                {
-                    self.handler_text = format!("{:?} -> {}", next_id_path, &node_text);
-                    self.open_path(&next_id_path);
-                    self.tree_state.select(next_id_path);
-                    return;
-                }
-
-                current_path = next_id_path;
-            } else {
-                self.handler_text = "No more nodes".to_string();
-                return;
-            }
-        }
-
-        self.handler_text = "No matching node found".to_string();
-    }
-
-    fn try_search(&mut self, dir: SearchDirection, start_node: &[usize]) {
-        if let Some(text) = &self.input_text {
-            self.find_node_with_text(text[1..].to_lowercase(), start_node, dir);
+    fn try_search(&mut self, _dir: SearchDirection, _start_node: &[usize]) {
+        if let Some(_text) = &self.input_text {
+            todo!()
         } else {
             self.handler_text = "nothing to search for".to_string();
         }
@@ -937,33 +485,4 @@ pub const fn help_text() -> &'static str {
   E                    - Expand current node recursively
   C                    - Collapse current node recursively
 "#
-}
-
-#[cfg(test)]
-mod tests {
-    // use super::*;
-    // use std::collections::BTreeMap;
-
-    //     #[test]
-    //     fn test_file_tree_structure() {
-    // let dict = dicom_dictionary_std::StandardDataDictionary;
-    // let mut tags = BTreeMap::new();
-    // let elements = vec![];
-    // tags.insert(0x0008, elements.clone());
-    // tags.insert(0x0010, elements);
-    // let di = DicomInput {
-    //     base_path: "root".to_string(),
-    //     file_tags: BTreeMap::from([("01.dcm".to_string(), tags)]),
-    // };
-
-    // let root_item = build_tree(&di);
-
-    // println!("root: {:?}", &root_item);
-    // let children = root_item.children();
-    // println!("Children: {:?}", &children);
-    // assert_eq!(children.len(), 2, "Should have 2 groups");
-
-    // assert_eq!(children[0].identifier(), "group_0008");
-    // assert_eq!(children[1].identifier(), "group_0010");
-    // }
 }

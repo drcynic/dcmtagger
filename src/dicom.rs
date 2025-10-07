@@ -5,7 +5,6 @@ use std::{fs, io};
 use anyhow::Result;
 use dicom_core::{Length, Tag};
 use dicom_object::InMemDicomObject;
-use tui_tree_widget::TreeItem;
 
 use crate::tree_widget;
 
@@ -62,7 +61,7 @@ impl DicomData {
         })
     }
 
-    pub fn tree_sorted_by_filename2(&self) -> tree_widget::TreeWidget {
+    pub fn tree_sorted_by_filename(&self) -> tree_widget::TreeWidget {
         let mut tree_widget = tree_widget::TreeWidget::new(self.root_dir.display().to_string());
 
         for entry in &self.datasets_with_filename {
@@ -94,9 +93,9 @@ impl DicomData {
         tree_widget
     }
 
-    pub fn tree_sorted_by_tag2(&self, min_diff: usize) -> tree_widget::TreeWidget {
+    pub fn tree_sorted_by_tag(&self, min_diff: usize) -> tree_widget::TreeWidget {
         if self.datasets_with_filename.len() == 1 {
-            return self.tree_sorted_by_filename2();
+            return self.tree_sorted_by_filename();
         }
 
         let mut tree_widget = tree_widget::TreeWidget::new(self.root_dir.display().to_string());
@@ -143,128 +142,6 @@ impl DicomData {
         }
 
         tree_widget
-    }
-
-    pub fn tree_sorted_by_filename(&self) -> (tui_tree_widget::TreeItem<'static, usize>, BTreeMap<usize, String>) {
-        let mut root_node = TreeItem::new(0usize, self.root_dir.display().to_string(), Vec::new()).expect("valid root");
-        let mut element_texts_by_id = BTreeMap::new();
-        let mut id_counter = 1usize;
-
-        for entry in &self.datasets_with_filename {
-            let mut file_node = TreeItem::new(id_counter, entry.filename.clone(), Vec::new()).expect("valid file");
-
-            let mut current_group_node: Option<TreeItem<'_, usize>> = None;
-            let mut current_group = 0u16;
-
-            for elem in entry.dataset.iter() {
-                let tag = elem.header().tag;
-
-                if current_group != tag.group() {
-                    if let Some(cgn) = &current_group_node {
-                        file_node.add_child(cgn.clone()).expect("valid group"); // set prev
-                    }
-                    current_group = tag.group();
-                    let group_text = format!("{:04x}", current_group);
-                    current_group_node = Some(TreeItem::new(id_counter, group_text, Vec::new()).expect("valid group"));
-                    id_counter += 1;
-                }
-
-                let tag_name = get_tag_name(elem);
-                let value = get_value_string(elem);
-                let element_text = format!(
-                    "{:04x} {} ({}, {}): {}",
-                    tag.element(),
-                    tag_name,
-                    elem.vr(),
-                    elem.header().len,
-                    value
-                );
-                element_texts_by_id.insert(id_counter, element_text.clone());
-                let element_node = TreeItem::new_leaf(id_counter, element_text);
-                id_counter += 1;
-                current_group_node.as_mut().unwrap().add_child(element_node).expect("valid element");
-            }
-
-            file_node.add_child(current_group_node.unwrap()).expect("valid group"); // add last group
-            root_node.add_child(file_node).expect("valid group");
-        }
-
-        (root_node, element_texts_by_id)
-    }
-
-    pub fn tree_sorted_by_tag(&self, min_diff: usize) -> (tui_tree_widget::TreeItem<'static, usize>, BTreeMap<usize, String>) {
-        if self.datasets_with_filename.len() == 1 {
-            return self.tree_sorted_by_filename();
-        }
-
-        let mut group_nodes_by_tag_group: BTreeMap<u16, TreeItem<'_, usize>> = BTreeMap::new();
-        let mut tag_nodes_id_and_text_by_tag: BTreeMap<Tag, (usize, String)> = BTreeMap::new();
-        let mut element_nodes_by_tag: BTreeMap<Tag, Vec<TreeItem<'_, usize>>> = BTreeMap::new();
-        let mut element_texts_by_id = BTreeMap::new();
-        let mut id_counter = 1usize;
-
-        for entry in &self.datasets_with_filename {
-            for elem in entry.dataset.iter() {
-                let tag = elem.header().tag;
-                group_nodes_by_tag_group.entry(tag.group()).or_insert_with(|| {
-                    let group_tag_text = format!("{:04x}/", tag.group());
-                    let id = id_counter;
-                    id_counter += 1;
-                    TreeItem::new(id, group_tag_text, Vec::new()).expect("valid node")
-                });
-                let (num_values, max_length) = self.num_values_and_max_length_by_tag[&tag];
-                if num_values > min_diff {
-                    tag_nodes_id_and_text_by_tag.entry(tag).or_insert_with(|| {
-                        let tag_name = get_tag_name(elem);
-                        let value_lengths_text = if max_length.is_some() {
-                            String::new() // will be done per element
-                        } else {
-                            format!(", {}", elem.header().len)
-                        };
-                        let tag_id = id_counter;
-                        id_counter += 1;
-                        let tag_text = format!("{:04x} {} ({}{})", tag.element(), tag_name, elem.vr(), value_lengths_text);
-                        element_texts_by_id.insert(tag_id, tag_text.clone());
-                        (tag_id, tag_text)
-                    });
-                    let value = get_value_string(elem);
-                    let element_len = elem.header().len;
-                    let element_len = if element_len.0 == Length::UNDEFINED.0 {
-                        5
-                    } else {
-                        element_len.0 as usize
-                    };
-                    let field_width = if let Some(max_length) = max_length {
-                        max_length as usize
-                    } else {
-                        element_len
-                    };
-                    let element_text = format!("{:<width$}[{}] - {}", value, element_len, &entry.filename, width = field_width);
-                    let element_node = TreeItem::new(id_counter, element_text.clone(), Vec::new()).expect("valid node");
-                    element_texts_by_id.insert(id_counter, element_text);
-                    id_counter += 1;
-                    element_nodes_by_tag.entry(tag).or_default().push(element_node);
-                }
-            }
-        }
-
-        for (tag, (id, text)) in tag_nodes_id_and_text_by_tag {
-            let elements = element_nodes_by_tag.remove(&tag).unwrap();
-            let tag_node = TreeItem::new(id, text, elements).expect("valid node");
-            group_nodes_by_tag_group
-                .get_mut(&tag.group())
-                .unwrap()
-                .add_child(tag_node)
-                .expect("valid tag node");
-        }
-
-        let mut group_nodes = Vec::new();
-        for (_, node) in group_nodes_by_tag_group {
-            group_nodes.push(node);
-        }
-
-        let root = TreeItem::new(0usize, self.root_dir.display().to_string(), group_nodes).expect("valid root");
-        (root, element_texts_by_id)
     }
 }
 
@@ -363,7 +240,7 @@ mod tests {
 
         // Measure tree_sorted_by_tag execution time
         let tree_start = Instant::now();
-        let _tree = dicom_data.tree_sorted_by_tag2(0);
+        let _tree = dicom_data.tree_sorted_by_tag(0);
         let tree_duration = tree_start.elapsed();
         println!("tree_sorted_by_tag() execution time: {:?}", tree_duration);
 
