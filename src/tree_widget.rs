@@ -107,6 +107,23 @@ impl TreeWidget {
         }
     }
 
+    pub fn visible_nodes_indices(&self) -> Vec<slotmap::DefaultKey> {
+        let mut v = Vec::new();
+        self.gen_visible_nodes_indices_recursive(&mut v, self.root_id);
+        v
+    }
+
+    fn gen_visible_nodes_indices_recursive(&self, v: &mut Vec<slotmap::DefaultKey>, id: slotmap::DefaultKey) {
+        v.push(id);
+        if let Some(node) = self.nodes.get(id)
+            && self.open_nodes.contains(&id)
+        {
+            for child_id in &node.children {
+                self.gen_visible_nodes_indices_recursive(v, *child_id);
+            }
+        }
+    }
+
     fn next(&self, cur_id: slotmap::DefaultKey) -> Option<slotmap::DefaultKey> {
         let cur = self.nodes.get(cur_id).unwrap();
         if !cur.children.is_empty() && self.open_nodes.contains(&cur_id) {
@@ -455,5 +472,48 @@ mod tests {
         assert_eq!(tree_widget.level(child4_id), 3);
         assert_eq!(tree_widget.level(child5_id), 1);
         assert_eq!(tree_widget.level(child6_id), 1);
+    }
+
+    #[test]
+    fn test_visible_nodes_with_idx_closed() {
+        let mut tree_widget = TreeWidget::new("root".to_string());
+        let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
+        tree_widget.add_child("child2", child1_id);
+        let child3_id = tree_widget.add_child("child3", child1_id);
+        tree_widget.add_child("child4", child3_id);
+        let child5_id = tree_widget.add_child("child5", tree_widget.root_id);
+        let child6_id = tree_widget.add_child("child6", tree_widget.root_id);
+        tree_widget.open(tree_widget.root_id);
+
+        let vni = tree_widget.visible_nodes_indices();
+        assert_eq!(vni.len(), 4);
+        assert_eq!(vni.iter().position(|&id| id == tree_widget.root_id).unwrap(), 0);
+        assert_eq!(vni.iter().position(|&id| id == child1_id).unwrap(), 1);
+        assert_eq!(vni.iter().position(|&id| id == child5_id).unwrap(), 2);
+        assert_eq!(vni.iter().position(|&id| id == child6_id).unwrap(), 3);
+    }
+
+    #[test]
+    fn test_visible_nodes_with_idx_all_open() {
+        let mut tree_widget = TreeWidget::new("root".to_string());
+        let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
+        let child2_id = tree_widget.add_child("child2", child1_id);
+        let child3_id = tree_widget.add_child("child3", child1_id);
+        let child4_id = tree_widget.add_child("child4", child3_id);
+        let child5_id = tree_widget.add_child("child5", tree_widget.root_id);
+        let child6_id = tree_widget.add_child("child6", tree_widget.root_id);
+        tree_widget.open(tree_widget.root_id);
+        tree_widget.open(child1_id);
+        tree_widget.open(child3_id);
+
+        let vni = tree_widget.visible_nodes_indices();
+        assert_eq!(vni.len(), 7);
+        assert_eq!(vni.iter().position(|&id| id == tree_widget.root_id).unwrap(), 0);
+        assert_eq!(vni.iter().position(|&id| id == child1_id).unwrap(), 1);
+        assert_eq!(vni.iter().position(|&id| id == child2_id).unwrap(), 2);
+        assert_eq!(vni.iter().position(|&id| id == child3_id).unwrap(), 3);
+        assert_eq!(vni.iter().position(|&id| id == child4_id).unwrap(), 4);
+        assert_eq!(vni.iter().position(|&id| id == child5_id).unwrap(), 5);
+        assert_eq!(vni.iter().position(|&id| id == child6_id).unwrap(), 6);
     }
 }

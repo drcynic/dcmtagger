@@ -871,14 +871,17 @@ impl<'a> Widget for &mut App<'a> {
         //     .highlight_style(Style::default().bg(Color::DarkGray));
         // StatefulWidget::render(tree, list_area, buf, &mut self.tree_state);
 
-        // let mut tree_widget = tree_widget::TreeWidget::new("root".to_string());
-        // let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
-        // tree_widget.add_child("child2", child1_id);
-        // tree_widget.add_child("child3", child1_id);
-        // tree_widget.add_child("child4", tree_widget.root_id);
-        // tree_widget.add_child("child5", tree_widget.root_id);
-        // tree_widget.open_nodes.insert(tree_widget.root_id);
-        // tree_widget.open_nodes.insert(child1_id);
+        // !todo: check if this is fast enough for very large tree with > 150k nodes all opened
+        let visible = self.tree_widget.visible_nodes_indices();
+        let start_idx = visible.iter().position(|&id| id == self.tree_widget.visible_start_id).unwrap();
+        let sel_idx = visible.iter().position(|&id| id == self.tree_widget.selected_id).unwrap();
+        if sel_idx < start_idx {
+            self.tree_widget.visible_start_id = self.tree_widget.selected_id;
+        } else if sel_idx - start_idx >= self.page_size {
+            // selection not visible, move start to ensure
+            self.tree_widget.visible_start_id = visible[sel_idx.saturating_sub(self.page_size - 1)];
+        }
+
         let tree_renderer = tree_widget::TreeWidgetRenderer::new()
             .block(tree_block)
             .selection_style(Style::default().bg(Color::DarkGray));
