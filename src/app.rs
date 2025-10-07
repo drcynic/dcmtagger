@@ -426,11 +426,13 @@ impl<'a> App<'a> {
     fn move_to_prev_sibling(&mut self) {
         self.handler_text = "K/shift+↑ -> move to previous sibling".to_string();
         self.move_to_sibling_by_direction(true);
+        self.tree_widget.select_prev_sibling();
     }
 
     fn move_to_next_sibling(&mut self) {
         self.handler_text = "J/shift+↓ -> move to next sibling".to_string();
         self.move_to_sibling_by_direction(false);
+        self.tree_widget.select_next_sibling();
     }
 
     fn move_to_sibling_by_direction(&mut self, move_up: bool) {
@@ -872,7 +874,7 @@ impl<'a> Widget for &mut App<'a> {
         // StatefulWidget::render(tree, list_area, buf, &mut self.tree_state);
 
         // !todo: check if this is fast enough for very large tree with > 150k nodes all opened
-        let visible = self.tree_widget.visible_nodes_indices();
+        let visible = self.tree_widget.visible_nodes();
         let start_idx = visible.iter().position(|&id| id == self.tree_widget.visible_start_id).unwrap();
         let sel_idx = visible.iter().position(|&id| id == self.tree_widget.selected_id).unwrap();
         if sel_idx < start_idx {

@@ -107,19 +107,19 @@ impl TreeWidget {
         }
     }
 
-    pub fn visible_nodes_indices(&self) -> Vec<slotmap::DefaultKey> {
+    pub fn visible_nodes(&self) -> Vec<slotmap::DefaultKey> {
         let mut v = Vec::new();
-        self.gen_visible_nodes_indices_recursive(&mut v, self.root_id);
+        self.gen_visible_nodes_recursive(&mut v, self.root_id);
         v
     }
 
-    fn gen_visible_nodes_indices_recursive(&self, v: &mut Vec<slotmap::DefaultKey>, id: slotmap::DefaultKey) {
+    fn gen_visible_nodes_recursive(&self, v: &mut Vec<slotmap::DefaultKey>, id: slotmap::DefaultKey) {
         v.push(id);
         if let Some(node) = self.nodes.get(id)
             && self.open_nodes.contains(&id)
         {
             for child_id in &node.children {
-                self.gen_visible_nodes_indices_recursive(v, *child_id);
+                self.gen_visible_nodes_recursive(v, *child_id);
             }
         }
     }
@@ -161,6 +161,24 @@ impl TreeWidget {
             }
         } else {
             Some(parent_id)
+        }
+    }
+
+    pub fn select_next_sibling(&mut self) {
+        let sel_node = self.nodes.get(self.selected_id).unwrap();
+        if let Some(parent_id) = sel_node.parent_id
+            && let Some(sibling) = self.next_sibling(parent_id, self.selected_id)
+        {
+            self.selected_id = sibling;
+        }
+    }
+
+    pub fn select_prev_sibling(&mut self) {
+        let sel_node = self.nodes.get(self.selected_id).unwrap();
+        if let Some(parent_id) = sel_node.parent_id
+            && let Some(sibling) = self.prev_sibling(parent_id, self.selected_id)
+        {
+            self.selected_id = sibling;
         }
     }
 
@@ -485,7 +503,7 @@ mod tests {
         let child6_id = tree_widget.add_child("child6", tree_widget.root_id);
         tree_widget.open(tree_widget.root_id);
 
-        let vni = tree_widget.visible_nodes_indices();
+        let vni = tree_widget.visible_nodes();
         assert_eq!(vni.len(), 4);
         assert_eq!(vni.iter().position(|&id| id == tree_widget.root_id).unwrap(), 0);
         assert_eq!(vni.iter().position(|&id| id == child1_id).unwrap(), 1);
@@ -506,7 +524,7 @@ mod tests {
         tree_widget.open(child1_id);
         tree_widget.open(child3_id);
 
-        let vni = tree_widget.visible_nodes_indices();
+        let vni = tree_widget.visible_nodes();
         assert_eq!(vni.len(), 7);
         assert_eq!(vni.iter().position(|&id| id == tree_widget.root_id).unwrap(), 0);
         assert_eq!(vni.iter().position(|&id| id == child1_id).unwrap(), 1);
