@@ -207,6 +207,30 @@ impl TreeWidget {
         }
         level
     }
+
+    pub fn expand_recursive(&mut self, id: slotmap::DefaultKey) {
+        if let Some(cur) = self.nodes.get(id)
+            && !cur.children.is_empty()
+        {
+            self.open_nodes.insert(id);
+            let children = cur.children.clone(); // otherwise borrowing conflict with &mut self
+            for child_id in children {
+                self.expand_recursive(child_id);
+            }
+        }
+    }
+
+    pub fn collapse_recursive(&mut self, id: slotmap::DefaultKey) {
+        if let Some(cur) = self.nodes.get(id)
+            && !cur.children.is_empty()
+        {
+            self.open_nodes.remove(&id);
+            let children = cur.children.clone(); // otherwise borrowing conflict with &mut self
+            for child_id in children {
+                self.collapse_recursive(child_id);
+            }
+        }
+    }
 }
 
 pub struct TreeWidgetRenderer<'a> {

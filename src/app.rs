@@ -289,12 +289,12 @@ impl<'a> App<'a> {
 
     fn expand_current_recursive(&mut self) {
         self.handler_text = "shift + E -> expand current node recursively".to_string();
-        todo!()
+        self.tree_widget.expand_recursive(self.tree_widget.selected_id);
     }
 
     fn collapse_current_recursive(&mut self) {
         self.handler_text = "shift + C -> collapse current node recursively".to_string();
-        todo!()
+        self.tree_widget.collapse_recursive(self.tree_widget.selected_id);
     }
 
     fn move_to_prev_sibling(&mut self) {
