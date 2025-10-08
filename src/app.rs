@@ -129,8 +129,8 @@ impl<'a> App<'a> {
                 KeyCode::Enter | KeyCode::Char(' ') => self.toggle_node(),
                 KeyCode::Char('H') => self.move_to_parent(),
                 KeyCode::Left if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_parent(),
-                KeyCode::Char('L') => self.move_to_next_child(),
-                KeyCode::Right if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_next_child(),
+                KeyCode::Char('L') => self.move_to_first_child(),
+                KeyCode::Right if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_first_child(),
                 KeyCode::Right | KeyCode::Char('l') => self.move_into_tree(),
                 KeyCode::Left | KeyCode::Char('h') => self.move_up_tree(),
                 KeyCode::Char('N') => {
@@ -307,34 +307,62 @@ impl<'a> App<'a> {
         self.tree_widget.select_next_sibling();
     }
 
-    fn move_into_tree(&mut self) {
-        self.handler_text = "l/→ -> move into tree".to_string();
-        todo!()
-    }
-
     fn move_up_tree(&mut self) {
         self.handler_text = "h/← -> move up tree".to_string();
-        todo!()
+        let cur_id = self.tree_widget.selected_id;
+        let cur = self.tree_widget.nodes.get(cur_id).unwrap();
+        if !cur.children.is_empty() && self.tree_widget.open_nodes.contains(&cur_id) {
+            self.tree_widget.open_nodes.remove(&cur_id);
+        } else if let Some(parent_id) = cur.parent_id {
+            self.tree_widget.selected_id = parent_id;
+        }
+    }
+
+    fn move_into_tree(&mut self) {
+        self.handler_text = "l/→ -> move into tree".to_string();
+        let cur_id = self.tree_widget.selected_id;
+        let cur = self.tree_widget.nodes.get(cur_id).unwrap();
+        if !cur.children.is_empty() {
+            if self.tree_widget.open_nodes.contains(&cur_id) {
+                self.tree_widget.selected_id = cur.children[0];
+            } else {
+                self.tree_widget.open_nodes.insert(cur_id);
+            }
+        }
     }
 
     fn move_to_parent(&mut self) {
         self.handler_text = "shift+H/shift+← -> move to parent".to_string();
-        todo!()
+        let cur = self.tree_widget.nodes.get(self.tree_widget.selected_id).unwrap();
+        if let Some(parent_id) = cur.parent_id {
+            self.tree_widget.selected_id = parent_id;
+        }
     }
 
-    fn move_to_next_child(&mut self) {
-        self.handler_text = "shift+L/shift+→ -> move to next child".to_string();
-        todo!()
+    fn move_to_first_child(&mut self) {
+        self.handler_text = "shift+L/shift+→ -> move to first child".to_string();
+        let cur_id = self.tree_widget.selected_id;
+        let cur = self.tree_widget.nodes.get(cur_id).unwrap();
+        if !cur.children.is_empty() {
+            self.tree_widget.open_nodes.insert(cur_id);
+            self.tree_widget.selected_id = cur.children[0];
+        }
     }
 
     fn move_to_first_sibling(&mut self) {
         self.handler_text = "0/^ -> move to first sibling".to_string();
-        todo!()
+        let siblings = self.tree_widget.siblings(self.tree_widget.selected_id);
+        if let Some(first_sibling) = siblings.first() {
+            self.tree_widget.selected_id = *first_sibling;
+        }
     }
 
     fn move_to_last_sibling(&mut self) {
         self.handler_text = "$ -> move to last sibling".to_string();
-        todo!()
+        let siblings = self.tree_widget.siblings(self.tree_widget.selected_id);
+        if let Some(last_sibling) = siblings.last() {
+            self.tree_widget.selected_id = *last_sibling;
+        }
     }
 
     fn collapse_siblings(&mut self) {
