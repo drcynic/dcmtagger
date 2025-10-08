@@ -278,7 +278,8 @@ impl<'a> App<'a> {
 
     fn move_to_last(&mut self) {
         self.handler_text = "G -> move to last".to_string();
-        todo!()
+        let vn = self.tree_widget.visible_nodes();
+        self.tree_widget.selected_id = *vn.last().unwrap();
     }
 
     fn toggle_node(&mut self) {
