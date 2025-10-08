@@ -73,14 +73,12 @@ impl TreeWidget {
         }
     }
 
-    #[allow(dead_code)]
     pub fn open(&mut self, node_id: slotmap::DefaultKey) {
         if !self.open_nodes.contains(&node_id) {
             self.open_nodes.insert(node_id);
         }
     }
 
-    #[allow(dead_code)]
     pub fn close(&mut self, node_id: slotmap::DefaultKey) {
         if self.open_nodes.contains(&node_id) {
             self.open_nodes.remove(&node_id);
@@ -229,6 +227,14 @@ impl TreeWidget {
             for child_id in children {
                 self.collapse_recursive(child_id);
             }
+        }
+    }
+
+    pub fn siblings(&self, key: slotmap::DefaultKey) -> Vec<slotmap::DefaultKey> {
+        if let Some(parent_id) = self.nodes.get(key).and_then(|node| node.parent_id) {
+            self.nodes.get(parent_id).map_or(vec![], |parent| parent.children.clone())
+        } else {
+            vec![]
         }
     }
 }

@@ -307,18 +307,6 @@ impl<'a> App<'a> {
         self.tree_widget.select_next_sibling();
     }
 
-    #[allow(dead_code)]
-    fn open_all(&mut self) {
-        self.handler_text = "shift + E -> expand all".to_string();
-        todo!()
-    }
-
-    #[allow(dead_code)]
-    fn close_all(&mut self) {
-        self.handler_text = "shift + C -> collapse all".to_string();
-        todo!()
-    }
-
     fn move_into_tree(&mut self) {
         self.handler_text = "l/→ -> move into tree".to_string();
         todo!()
@@ -351,12 +339,18 @@ impl<'a> App<'a> {
 
     fn collapse_siblings(&mut self) {
         self.handler_text = "c -> collapse current node and siblings".to_string();
-        todo!()
+        let siblings = self.tree_widget.siblings(self.tree_widget.selected_id);
+        for sibling in siblings {
+            self.tree_widget.close(sibling);
+        }
     }
 
     fn expand_siblings(&mut self) {
         self.handler_text = "e -> expand current node and siblings".to_string();
-        todo!()
+        let siblings = self.tree_widget.siblings(self.tree_widget.selected_id);
+        for sibling in siblings {
+            self.tree_widget.open(sibling);
+        }
     }
 
     fn try_search(&mut self, _dir: SearchDirection, _start_node: &[usize]) {
