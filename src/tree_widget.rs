@@ -8,11 +8,13 @@ use ratatui::{
 };
 use slotmap::SlotMap;
 
+type Id = slotmap::DefaultKey;
+
 #[derive(Debug, Default)]
 pub struct TreeNode {
     pub text: String,
-    pub children: Vec<slotmap::DefaultKey>,
-    pub parent_id: Option<slotmap::DefaultKey>,
+    pub children: Vec<Id>,
+    pub parent_id: Option<Id>,
 }
 
 impl TreeNode {
@@ -27,11 +29,11 @@ impl TreeNode {
 
 #[derive(Debug, Default)]
 pub struct TreeWidget {
-    pub root_id: slotmap::DefaultKey,
-    pub visible_start_id: slotmap::DefaultKey,
-    pub selected_id: slotmap::DefaultKey,
-    pub open_nodes: HashSet<slotmap::DefaultKey>,
-    pub nodes: SlotMap<slotmap::DefaultKey, TreeNode>,
+    pub root_id: Id,
+    pub visible_start_id: Id,
+    pub selected_id: Id,
+    pub open_nodes: HashSet<Id>,
+    pub nodes: SlotMap<Id, TreeNode>,
 }
 
 impl TreeWidget {
@@ -47,7 +49,7 @@ impl TreeWidget {
         }
     }
 
-    pub fn add_child(&mut self, text: &str, parent_id: slotmap::DefaultKey) -> slotmap::DefaultKey {
+    pub fn add_child(&mut self, text: &str, parent_id: Id) -> Id {
         let mut child = TreeNode::new(text.to_string());
         child.parent_id = Some(parent_id);
         let child_id = self.nodes.insert(child);
@@ -57,7 +59,7 @@ impl TreeWidget {
     }
 
     #[allow(dead_code)]
-    pub fn is_open(&self, node_id: &slotmap::DefaultKey) -> bool {
+    pub fn is_open(&self, node_id: &Id) -> bool {
         self.open_nodes.contains(node_id)
     }
 
@@ -65,7 +67,7 @@ impl TreeWidget {
         self.toggle(self.selected_id);
     }
 
-    pub fn toggle(&mut self, node_id: slotmap::DefaultKey) {
+    pub fn toggle(&mut self, node_id: Id) {
         if self.open_nodes.contains(&node_id) {
             self.open_nodes.remove(&node_id);
         } else {
@@ -73,13 +75,13 @@ impl TreeWidget {
         }
     }
 
-    pub fn open(&mut self, node_id: slotmap::DefaultKey) {
+    pub fn open(&mut self, node_id: Id) {
         if !self.open_nodes.contains(&node_id) {
             self.open_nodes.insert(node_id);
         }
     }
 
-    pub fn close(&mut self, node_id: slotmap::DefaultKey) {
+    pub fn close(&mut self, node_id: Id) {
         if self.open_nodes.contains(&node_id) {
             self.open_nodes.remove(&node_id);
         }
@@ -105,13 +107,13 @@ impl TreeWidget {
         }
     }
 
-    pub fn visible_nodes(&self) -> Vec<slotmap::DefaultKey> {
+    pub fn visible_nodes(&self) -> Vec<Id> {
         let mut v = Vec::new();
         self.gen_visible_nodes_recursive(&mut v, self.root_id);
         v
     }
 
-    fn gen_visible_nodes_recursive(&self, v: &mut Vec<slotmap::DefaultKey>, id: slotmap::DefaultKey) {
+    fn gen_visible_nodes_recursive(&self, v: &mut Vec<Id>, id: Id) {
         v.push(id);
         if let Some(node) = self.nodes.get(id)
             && self.open_nodes.contains(&id)
@@ -122,7 +124,7 @@ impl TreeWidget {
         }
     }
 
-    fn next(&self, cur_id: slotmap::DefaultKey) -> Option<slotmap::DefaultKey> {
+    fn next(&self, cur_id: Id) -> Option<Id> {
         let cur = self.nodes.get(cur_id).unwrap();
         if !cur.children.is_empty() && self.open_nodes.contains(&cur_id) {
             Some(cur.children[0])
@@ -143,7 +145,7 @@ impl TreeWidget {
         }
     }
 
-    fn prev(&self, cur_id: slotmap::DefaultKey) -> Option<slotmap::DefaultKey> {
+    fn prev(&self, cur_id: Id) -> Option<Id> {
         let cur = self.nodes.get(cur_id).unwrap();
 
         let parent_id = cur.parent_id?;
@@ -180,7 +182,7 @@ impl TreeWidget {
         }
     }
 
-    fn next_sibling(&self, parent_id: slotmap::DefaultKey, cur_id: slotmap::DefaultKey) -> Option<slotmap::DefaultKey> {
+    fn next_sibling(&self, parent_id: Id, cur_id: Id) -> Option<Id> {
         let parent = self.nodes.get(parent_id).unwrap();
         let index = parent.children.iter().position(|&id| id == cur_id)?;
         if index + 1 < parent.children.len() {
@@ -190,13 +192,13 @@ impl TreeWidget {
         }
     }
 
-    fn prev_sibling(&self, parent_id: slotmap::DefaultKey, cur_id: slotmap::DefaultKey) -> Option<slotmap::DefaultKey> {
+    fn prev_sibling(&self, parent_id: Id, cur_id: Id) -> Option<Id> {
         let parent = self.nodes.get(parent_id).unwrap();
         let index = parent.children.iter().position(|&id| id == cur_id).unwrap();
         if index > 0 { Some(parent.children[index - 1]) } else { None }
     }
 
-    pub fn level(&self, node_id: slotmap::DefaultKey) -> usize {
+    pub fn level(&self, node_id: Id) -> usize {
         let mut node = self.nodes.get(node_id).unwrap();
         let mut level = 0;
         while let Some(parent_id) = node.parent_id {
@@ -206,7 +208,7 @@ impl TreeWidget {
         level
     }
 
-    pub fn expand_recursive(&mut self, id: slotmap::DefaultKey) {
+    pub fn expand_recursive(&mut self, id: Id) {
         if let Some(cur) = self.nodes.get(id)
             && !cur.children.is_empty()
         {
@@ -218,7 +220,7 @@ impl TreeWidget {
         }
     }
 
-    pub fn collapse_recursive(&mut self, id: slotmap::DefaultKey) {
+    pub fn collapse_recursive(&mut self, id: Id) {
         if let Some(cur) = self.nodes.get(id)
             && !cur.children.is_empty()
         {
@@ -230,7 +232,7 @@ impl TreeWidget {
         }
     }
 
-    pub fn siblings(&self, key: slotmap::DefaultKey) -> Vec<slotmap::DefaultKey> {
+    pub fn siblings(&self, key: Id) -> Vec<Id> {
         if let Some(parent_id) = self.nodes.get(key).and_then(|node| node.parent_id) {
             self.nodes.get(parent_id).map_or(vec![], |parent| parent.children.clone())
         } else {
@@ -262,7 +264,7 @@ impl<'a> TreeWidgetRenderer<'a> {
         self
     }
 
-    fn render_node(&self, area: Rect, buf: &mut Buffer, node_id: slotmap::DefaultKey, state: &TreeWidget, lvl: usize) {
+    fn render_node(&self, area: Rect, buf: &mut Buffer, node_id: Id, state: &TreeWidget, lvl: usize) {
         let style = if node_id == state.selected_id {
             self.highlight_style
         } else {
