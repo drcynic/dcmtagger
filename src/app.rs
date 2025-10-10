@@ -27,7 +27,7 @@ enum Mode {
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum SearchDirection {
     Forward,
-    _Backward,
+    Backward,
 }
 
 #[derive(Debug, Default)]
@@ -39,7 +39,7 @@ pub struct App<'a> {
     mode: Mode,
     page_size: usize,
     input_text: Option<String>,
-    search_start_node_id: Vec<usize>,
+    search_start_node_id: tree_widget::Id,
     handler_text: String,
     exit: bool,
     help_scroll_offset: usize,
@@ -134,12 +134,12 @@ impl<'a> App<'a> {
                 KeyCode::Right | KeyCode::Char('l') => self.move_into_tree(),
                 KeyCode::Left | KeyCode::Char('h') => self.move_up_tree(),
                 KeyCode::Char('N') => {
-                    // let start_node = self.tree_state.selected().to_vec();
-                    // self.try_search(SearchDirection::Backward, &start_node);
+                    let start_node_id = self.tree_widget.selected_id;
+                    self.try_search(SearchDirection::Backward, start_node_id);
                 }
                 KeyCode::Char('n') => {
-                    // let start_node = self.tree_state.selected().to_vec();
-                    // self.try_search(SearchDirection::Forward, &start_node);
+                    let start_node_id = self.tree_widget.selected_id;
+                    self.try_search(SearchDirection::Forward, start_node_id);
                 }
                 _ => {}
             },
@@ -166,7 +166,7 @@ impl<'a> App<'a> {
                         } else {
                             Some(current_text.to_string())
                         };
-                        self.try_search(SearchDirection::Forward, &self.search_start_node_id.to_vec());
+                        self.try_search(SearchDirection::Forward, self.search_start_node_id);
                     }
                 }
             },
@@ -208,7 +208,7 @@ impl<'a> App<'a> {
 
     fn setup_input_edit(&mut self, start_char: char) {
         self.mode = Mode::Search;
-        // self.search_start_node_id = self.tree_state.selected().to_vec();
+        self.search_start_node_id = self.tree_widget.selected_id;
         let start_text = vec![if let Some(text) = &self.input_text {
             text.to_string()
         } else {
@@ -381,12 +381,47 @@ impl<'a> App<'a> {
         }
     }
 
-    fn try_search(&mut self, _dir: SearchDirection, _start_node: &[usize]) {
-        if let Some(_text) = &self.input_text {
-            todo!()
+    fn try_search(&mut self, dir: SearchDirection, start_node_id: tree_widget::Id) {
+        if let Some(text) = &self.input_text {
+            self.find_node_with_text(text[1..].to_lowercase(), start_node_id, dir);
         } else {
             self.handler_text = "nothing to search for".to_string();
         }
+    }
+
+    fn find_node_with_text(&mut self, search_text: String, start_node_id: tree_widget::Id, dir: SearchDirection) {
+        let mut cur_id = start_node_id;
+
+        loop {
+            let next_result = match dir {
+                SearchDirection::Forward => self.tree_widget.next(cur_id, false),
+                SearchDirection::Backward => self.tree_widget.prev(cur_id, false),
+            };
+
+            if let Some(next_id) = next_result {
+                // If we've wrapped around to the starting position, we've searched everything
+                if next_id == start_node_id {
+                    break;
+                }
+
+                if let Some(next_node) = self.tree_widget.nodes.get(next_id)
+                    && next_node.text.to_lowercase().contains(&search_text)
+                {
+                    self.handler_text = format!("searchtext: {}, {:?} -> {}", &search_text, next_id, &next_node.text);
+                    self.tree_widget.selected_id = next_id;
+                    self.tree_widget.open(next_id);
+                    return;
+                }
+
+                cur_id = next_id;
+            } else {
+                let cur_node = self.tree_widget.nodes.get(cur_id).unwrap();
+                self.handler_text = format!("no more nodes, searchtext: {}, {:?} -> {}", &search_text, cur_id, &cur_node.text);
+                return;
+            }
+        }
+
+        self.handler_text = "No matching node found".to_string();
     }
 
     fn render_help_overlay(&self, area: Rect, buf: &mut Buffer) {

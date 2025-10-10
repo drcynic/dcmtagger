@@ -8,7 +8,7 @@ use ratatui::{
 };
 use slotmap::SlotMap;
 
-type Id = slotmap::DefaultKey;
+pub type Id = slotmap::DefaultKey;
 
 #[derive(Debug, Default)]
 pub struct TreeNode {
@@ -76,20 +76,24 @@ impl TreeWidget {
     }
 
     pub fn open(&mut self, node_id: Id) {
-        if !self.open_nodes.contains(&node_id) {
+        self.open_nodes.insert(node_id);
+        // climb up hierarchy and open all parents
+        let mut node_id = node_id;
+        while let Some(node) = self.nodes.get(node_id)
+            && let Some(parent_id) = node.parent_id
+        {
             self.open_nodes.insert(node_id);
+            node_id = parent_id;
         }
     }
 
     pub fn close(&mut self, node_id: Id) {
-        if self.open_nodes.contains(&node_id) {
-            self.open_nodes.remove(&node_id);
-        }
+        self.open_nodes.remove(&node_id);
     }
 
     pub fn select_next(&mut self, offset: usize) {
         for _ in 0..offset {
-            if let Some(next_id) = self.next(self.selected_id) {
+            if let Some(next_id) = self.next_visible(self.selected_id) {
                 self.selected_id = next_id;
             } else {
                 break;
@@ -99,7 +103,7 @@ impl TreeWidget {
 
     pub fn select_prev(&mut self, offset: usize) {
         for _ in 0..offset {
-            if let Some(next_id) = self.prev(self.selected_id) {
+            if let Some(next_id) = self.prev_visible(self.selected_id) {
                 self.selected_id = next_id;
             } else {
                 break;
@@ -124,9 +128,9 @@ impl TreeWidget {
         }
     }
 
-    fn next(&self, cur_id: Id) -> Option<Id> {
+    pub fn next(&self, cur_id: Id, only_opened: bool) -> Option<Id> {
         let cur = self.nodes.get(cur_id).unwrap();
-        if !cur.children.is_empty() && self.open_nodes.contains(&cur_id) {
+        if !cur.children.is_empty() && (self.open_nodes.contains(&cur_id) || !only_opened) {
             Some(cur.children[0])
         } else {
             let mut cur_id = cur_id;
@@ -145,7 +149,11 @@ impl TreeWidget {
         }
     }
 
-    fn prev(&self, cur_id: Id) -> Option<Id> {
+    pub fn next_visible(&self, cur_id: Id) -> Option<Id> {
+        self.next(cur_id, true)
+    }
+
+    pub fn prev(&self, cur_id: Id, only_opened: bool) -> Option<Id> {
         let cur = self.nodes.get(cur_id).unwrap();
 
         let parent_id = cur.parent_id?;
@@ -153,7 +161,7 @@ impl TreeWidget {
             let mut cur_id = sibling_id;
             loop {
                 let cur = self.nodes.get(cur_id).unwrap();
-                if !cur.children.is_empty() && self.open_nodes.contains(&cur_id) {
+                if !cur.children.is_empty() && (self.open_nodes.contains(&cur_id) || !only_opened) {
                     cur_id = *cur.children.last().unwrap();
                 } else {
                     return Some(cur_id);
@@ -162,6 +170,10 @@ impl TreeWidget {
         } else {
             Some(parent_id)
         }
+    }
+
+    pub fn prev_visible(&self, cur_id: Id) -> Option<Id> {
+        self.prev(cur_id, true)
     }
 
     pub fn select_next_sibling(&mut self) {
@@ -294,7 +306,7 @@ impl<'a> StatefulWidget for TreeWidgetRenderer<'a> {
             let area = Rect::new(tree_area.x, y, tree_area.width, 1);
             self.render_node(area, buf, node_id, state, state.level(node_id));
 
-            if let Some(next_id) = state.next(node_id) {
+            if let Some(next_id) = state.next_visible(node_id) {
                 node_id = next_id;
             } else {
                 break; // nothing more to draw -> break
