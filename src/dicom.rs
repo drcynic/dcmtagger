@@ -12,7 +12,7 @@ pub type TagElement = dicom_core::DataElement<dicom_object::InMemDicomObject, Ve
 
 #[derive(Debug, Default)]
 pub struct DicomData {
-    root_dir: PathBuf,
+    root_path: PathBuf,
     datasets_with_filename: Vec<DatasetEntry>,
     num_values_and_max_length_by_tag: HashMap<Tag, (usize, Option<u32>)>,
 }
@@ -55,39 +55,23 @@ impl DicomData {
         let num_values_and_max_length_by_tag = num_distinct_values_and_max_length_by_tag(&datasets_with_filename);
 
         Ok(Self {
-            root_dir: PathBuf::from(path),
+            root_path: PathBuf::from(path),
             datasets_with_filename,
             num_values_and_max_length_by_tag,
         })
     }
 
     pub fn tree_sorted_by_filename(&self) -> tree_widget::TreeWidget {
-        let mut tree_widget = tree_widget::TreeWidget::new(self.root_dir.display().to_string());
+        let mut tree_widget = tree_widget::TreeWidget::new(self.root_path.display().to_string());
 
-        for entry in &self.datasets_with_filename {
-            let file_node_id = tree_widget.add_child(&entry.filename, tree_widget.root_id);
-            let mut current_group_node_id = file_node_id;
-            let mut current_group = 0u16;
-
-            for elem in entry.dataset.iter() {
-                let tag = elem.header().tag;
-
-                if current_group != tag.group() {
-                    current_group = tag.group();
-                    let group_text = format!("{:04x}", current_group);
-                    current_group_node_id = tree_widget.add_child(&group_text, file_node_id);
-                }
-
-                let element_text = format!(
-                    "{:04x} {} ({}, {}): {}",
-                    tag.element(),
-                    get_tag_name(elem),
-                    elem.vr(),
-                    elem.header().len,
-                    get_value_string(elem)
-                );
-                tree_widget.add_child(&element_text, current_group_node_id);
+        if self.root_path.is_dir() {
+            for entry in &self.datasets_with_filename {
+                let parent_id = tree_widget.add_child(&entry.filename, tree_widget.root_id);
+                read_data_into_tree(&mut tree_widget, entry, parent_id);
             }
+        } else {
+            let parent_id = tree_widget.root_id;
+            read_data_into_tree(&mut tree_widget, &self.datasets_with_filename[0], parent_id);
         }
 
         tree_widget
@@ -98,7 +82,7 @@ impl DicomData {
             return self.tree_sorted_by_filename();
         }
 
-        let mut tree_widget = tree_widget::TreeWidget::new(self.root_dir.display().to_string());
+        let mut tree_widget = tree_widget::TreeWidget::new(self.root_path.display().to_string());
         let root_id = tree_widget.root_id;
 
         let mut group_nodes_by_tag_group: BTreeMap<u16, slotmap::DefaultKey> = BTreeMap::new();
@@ -142,6 +126,31 @@ impl DicomData {
         }
 
         tree_widget
+    }
+}
+
+fn read_data_into_tree(tree_widget: &mut tree_widget::TreeWidget, entry: &DatasetEntry, parent_id: slotmap::DefaultKey) {
+    let mut current_group_node_id = parent_id;
+    let mut current_group = 0u16;
+
+    for elem in entry.dataset.iter() {
+        let tag = elem.header().tag;
+
+        if current_group != tag.group() {
+            current_group = tag.group();
+            let group_text = format!("{:04x}", current_group);
+            current_group_node_id = tree_widget.add_child(&group_text, parent_id);
+        }
+
+        let element_text = format!(
+            "{:04x} {} ({}, {}): {}",
+            tag.element(),
+            get_tag_name(elem),
+            elem.vr(),
+            elem.header().len,
+            get_value_string(elem)
+        );
+        tree_widget.add_child(&element_text, current_group_node_id);
     }
 }
 
