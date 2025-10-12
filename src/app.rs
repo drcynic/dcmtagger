@@ -473,11 +473,6 @@ impl<'a> Widget for &mut App<'a> {
             .title(title.centered())
             .border_set(bottom_vert_border_set)
             .padding(Padding::horizontal(0));
-        // let tree = Tree::new(&self.tree_items)
-        //     .expect("all item identifiers are unique")
-        //     .block(tree_block)
-        //     .highlight_style(Style::default().bg(Color::DarkGray));
-        // StatefulWidget::render(tree, list_area, buf, &mut self.tree_state);
 
         // !todo: check if this is fast enough for very large tree with > 150k nodes all opened
         let visible = self.tree_widget.visible_nodes();

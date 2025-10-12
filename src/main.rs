@@ -17,8 +17,6 @@ struct Args {
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let input_path = args.input_path;
-    // let input_path = "calib-phantom-s2-dvt/".to_string();
-    // let input_path = "testdata".to_string();
 
     let mut terminal = ratatui::init();
     let app_result = App::new(&input_path)?.run(&mut terminal);
