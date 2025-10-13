@@ -12,14 +12,18 @@ use app::App;
 struct Args {
     #[clap(value_parser)]
     input_path: String,
+
+    #[clap(default_value_t = false, long, short)]
+    debug: bool,
 }
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let input_path = args.input_path;
+    let debug = args.debug;
 
     let mut terminal = ratatui::init();
-    let app_result = App::new(&input_path)?.run(&mut terminal);
+    let app_result = App::new(&input_path, debug)?.run(&mut terminal);
     ratatui::restore();
     match app_result {
         Ok(()) => Ok(()),

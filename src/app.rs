@@ -43,10 +43,11 @@ pub struct App<'a> {
     handler_text: String,
     exit: bool,
     help_scroll_offset: usize,
+    show_debug_info: bool,
 }
 
 impl<'a> App<'a> {
-    pub fn new(input_path: &'a str) -> anyhow::Result<Self> {
+    pub fn new(input_path: &'a str, show_debug_info: bool) -> anyhow::Result<Self> {
         let dicom_data = DicomData::new(Path::new(input_path))?;
         let mut text_area = TextArea::new(Vec::new());
         text_area.set_cursor_style(Style::default());
@@ -59,6 +60,7 @@ impl<'a> App<'a> {
             dicom_data,
             tree_widget,
             text_area,
+            show_debug_info,
             ..Default::default()
         })
     }
@@ -72,14 +74,15 @@ impl<'a> App<'a> {
     }
 
     pub fn draw(&mut self, frame: &mut Frame) {
-        let [list_area, _, _] = App::layouted_areas(frame.area());
+        let [list_area, _, _] = self.layouted_areas(frame.area());
         self.page_size = list_area.height.saturating_sub(2) as usize;
 
         frame.render_widget(self, frame.area());
     }
 
-    fn layouted_areas(area: Rect) -> [Rect; 3] {
-        Layout::vertical([Constraint::Fill(1), Constraint::Length(2), Constraint::Length(2)]).areas(area)
+    fn layouted_areas(&self, area: Rect) -> [Rect; 3] {
+        let debug_size = if self.show_debug_info { 2 } else { 0 };
+        Layout::vertical([Constraint::Fill(1), Constraint::Length(debug_size), Constraint::Length(2)]).areas(area)
     }
 
     fn handle_events(&mut self) -> io::Result<()> {
@@ -459,9 +462,8 @@ impl<'a> App<'a> {
 impl<'a> Widget for &mut App<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_path.into(), " ".into()]);
-        // let instructions = Line::from(vec![" Quit ".into(), "<Q> ".blue().bold()]);
 
-        let [list_area, state_area, input_area] = App::<'a>::layouted_areas(area);
+        let [list_area, state_area, input_area] = self.layouted_areas(area);
 
         let bottom_vert_border_set = symbols::border::Set {
             bottom_left: symbols::line::NORMAL.vertical_right,
