@@ -38,18 +38,10 @@ impl DicomData {
                     continue;
                 }
 
-                let dataset = dicom_object::OpenFileOptions::new()
-                    .read_until(dicom_dictionary_std::tags::PIXEL_DATA)
-                    .open_file(entry_path)?;
-                let filename = entry_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string();
-
-                datasets_with_filename.push(DatasetEntry { filename, dataset });
+                datasets_with_filename.push(read_dataset(entry_path)?);
             }
         } else {
-            let dataset = dicom_object::open_file(path)?;
-            let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string();
-
-            datasets_with_filename.push(DatasetEntry { filename, dataset });
+            datasets_with_filename.push(read_dataset(path)?);
         }
 
         let num_values_and_max_length_by_tag = num_distinct_values_and_max_length_by_tag(&datasets_with_filename);
@@ -127,6 +119,15 @@ impl DicomData {
 
         tree_widget
     }
+}
+
+fn read_dataset(path: &Path) -> anyhow::Result<DatasetEntry> {
+    let dataset = dicom_object::OpenFileOptions::new()
+        .read_until(dicom_dictionary_std::tags::PIXEL_DATA)
+        .open_file(path)?;
+    let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string();
+
+    Ok(DatasetEntry { filename, dataset })
 }
 
 fn read_data_into_tree(tree_widget: &mut tree_widget::TreeWidget, entry: &DatasetEntry, parent_id: slotmap::DefaultKey) {
