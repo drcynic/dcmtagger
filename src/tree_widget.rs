@@ -283,10 +283,12 @@ impl<'a> TreeWidgetRenderer<'a> {
             ratatui::style::Style::default()
         };
         let node = state.nodes.get(node_id).unwrap();
+        let is_last = node.parent_id.is_some() && *state.nodes.get(node.parent_id.unwrap()).unwrap().children.last().unwrap() == node_id;
+        let branch = if is_last { "└──" } else { "├──" };
         let node_text = format!(
             "{}{}{}{}",
             "│  ".repeat(lvl.saturating_sub(1)),
-            if lvl == 0 { "" } else { "├──" },
+            if lvl == 0 { "" } else { branch },
             node.text,
             if !node.children.is_empty() { "/" } else { "" }
         );
