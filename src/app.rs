@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::{io, path::Path};
 
+use clap::Parser;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
     DefaultTerminal, Frame,
@@ -15,6 +16,20 @@ use tui_textarea::{Input, TextArea};
 
 use crate::dicom::DicomData;
 use crate::tree_widget;
+
+#[derive(Clone, Debug, Parser)]
+#[clap(name = "DICOM Tagger", version = format!("v{}", env!("CARGO_PKG_VERSION")))]
+#[clap(about = "Copyright (c) 2025 Daniel Szymanski")]
+pub struct AppParameter {
+    #[clap(value_parser)]
+    pub input_path: String,
+
+    #[clap(default_value_t = false, long, short, help = "Enable debug mode")]
+    pub debug: bool,
+
+    #[clap(default_value_t = false, long, short, help = "Skip reading pixel data during parsing")]
+    pub skip_pixel_data: bool,
+}
 
 #[derive(Debug, Default, PartialEq)]
 enum Mode {
@@ -32,7 +47,7 @@ enum SearchDirection {
 
 #[derive(Debug, Default)]
 pub struct App<'a> {
-    input_path: &'a str,
+    input_path: String,
     dicom_data: DicomData,
     tree_widget: tree_widget::TreeWidget,
     text_area: TextArea<'a>,
@@ -47,8 +62,8 @@ pub struct App<'a> {
 }
 
 impl<'a> App<'a> {
-    pub fn new(input_path: &'a str, show_debug_info: bool) -> anyhow::Result<Self> {
-        let dicom_data = DicomData::new(Path::new(input_path))?;
+    pub fn new(param: AppParameter) -> anyhow::Result<Self> {
+        let dicom_data = DicomData::new(Path::new(&param.input_path), param.skip_pixel_data)?;
         let mut text_area = TextArea::new(Vec::new());
         text_area.set_cursor_style(Style::default());
 
@@ -56,11 +71,11 @@ impl<'a> App<'a> {
         tree_widget.open(tree_widget.root_id);
 
         Ok(App {
-            input_path,
+            input_path: param.input_path,
             dicom_data,
             tree_widget,
             text_area,
-            show_debug_info,
+            show_debug_info: param.debug,
             ..Default::default()
         })
     }
@@ -461,7 +476,7 @@ impl<'a> App<'a> {
 
 impl<'a> Widget for &mut App<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_path.into(), " ".into()]);
+        let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_path.clone().into(), " ".into()]);
 
         let [list_area, state_area, input_area] = self.layouted_areas(area);
 

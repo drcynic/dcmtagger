@@ -1,29 +1,14 @@
-use clap::Parser;
-
 mod app;
 mod dicom;
 mod tree_widget;
 
-use app::App;
-
-#[derive(Clone, Debug, Parser)]
-#[clap(name = "DICOM Tagger", version = format!("v{}", env!("CARGO_PKG_VERSION")))]
-#[clap(about = "Copyright (c) 2025 Daniel Szymanski")]
-struct Args {
-    #[clap(value_parser)]
-    input_path: String,
-
-    #[clap(default_value_t = false, long, short)]
-    debug: bool,
-}
+use app::{App, AppParameter};
+use clap::Parser;
 
 fn main() -> anyhow::Result<()> {
-    let args = Args::parse();
-    let input_path = args.input_path;
-    let debug = args.debug;
-
+    let args = AppParameter::parse();
     let mut terminal = ratatui::init();
-    let app_result = App::new(&input_path, debug)?.run(&mut terminal);
+    let app_result = App::new(args)?.run(&mut terminal);
     ratatui::restore();
     match app_result {
         Ok(()) => Ok(()),

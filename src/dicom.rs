@@ -24,7 +24,7 @@ pub struct DatasetEntry {
 }
 
 impl DicomData {
-    pub fn new(path: &Path) -> Result<Self> {
+    pub fn new(path: &Path, skip_pixel_data: bool) -> Result<Self> {
         let mut datasets_with_filename = Vec::new();
 
         if path.is_dir() {
@@ -38,10 +38,10 @@ impl DicomData {
                     continue;
                 }
 
-                datasets_with_filename.push(read_dataset(entry_path)?);
+                datasets_with_filename.push(read_dataset(entry_path, skip_pixel_data)?);
             }
         } else {
-            datasets_with_filename.push(read_dataset(path)?);
+            datasets_with_filename.push(read_dataset(path, skip_pixel_data)?);
         }
 
         let num_values_and_max_length_by_tag = num_distinct_values_and_max_length_by_tag(&datasets_with_filename);
@@ -121,10 +121,14 @@ impl DicomData {
     }
 }
 
-fn read_dataset(path: &Path) -> anyhow::Result<DatasetEntry> {
-    let dataset = dicom_object::OpenFileOptions::new()
-        .read_until(dicom_dictionary_std::tags::PIXEL_DATA)
-        .open_file(path)?;
+fn read_dataset(path: &Path, skip_pixel_data: bool) -> anyhow::Result<DatasetEntry> {
+    let dataset = if skip_pixel_data {
+        dicom_object::OpenFileOptions::new()
+            .read_until(dicom_dictionary_std::tags::PIXEL_DATA)
+            .open_file(path)?
+    } else {
+        dicom_object::open_file(path)?
+    };
     let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string();
 
     Ok(DatasetEntry { filename, dataset })
@@ -237,7 +241,7 @@ mod tests {
 
         // Measure DicomData creation time
         let load_start = Instant::now();
-        let dicom_data = match DicomData::new(test_path) {
+        let dicom_data = match DicomData::new(test_path, true) {
             Ok(data) => data,
             Err(e) => {
                 println!("Failed to load DICOM data: {}", e);
