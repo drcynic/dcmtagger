@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
 use ratatui::{
     buffer::Buffer,
@@ -210,14 +210,28 @@ impl TreeWidget {
         if index > 0 { Some(parent.children[index - 1]) } else { None }
     }
 
-    pub fn level(&self, node_id: Id) -> usize {
+    pub fn level(&self, node_id: Id) -> VecDeque<bool> {
         let mut node = self.nodes.get(node_id).unwrap();
-        let mut level = 0;
+        let mut node_id = node_id;
+        let mut level = VecDeque::new();
         while let Some(parent_id) = node.parent_id {
-            level += 1;
+            level.push_front(self.is_last_siblings(node_id));
             node = self.nodes.get(parent_id).unwrap();
+            node_id = parent_id;
         }
+        level.push_front(true); // root is handled differently
         level
+    }
+
+    pub fn is_last_siblings(&self, node_id: Id) -> bool {
+        if let Some(node) = self.nodes.get(node_id)
+            && let Some(parent_id) = node.parent_id
+            && let Some(parent) = self.nodes.get(parent_id)
+        {
+            *parent.children.last().unwrap() == node_id
+        } else {
+            false
+        }
     }
 
     pub fn expand_recursive(&mut self, id: Id) {
@@ -276,22 +290,29 @@ impl<'a> TreeWidgetRenderer<'a> {
         self
     }
 
-    fn render_node(&self, area: Rect, buf: &mut Buffer, node_id: Id, state: &TreeWidget, lvl: usize) {
+    fn render_node(&self, area: Rect, buf: &mut Buffer, node_id: Id, state: &TreeWidget, lvl: &mut VecDeque<bool>) {
         let style = if node_id == state.selected_id {
             self.highlight_style
         } else {
             ratatui::style::Style::default()
         };
         let node = state.nodes.get(node_id).unwrap();
-        let is_last = node.parent_id.is_some() && *state.nodes.get(node.parent_id.unwrap()).unwrap().children.last().unwrap() == node_id;
-        let branch = if is_last { "└──" } else { "├──" };
-        let node_text = format!(
-            "{}{}{}{}",
-            "│  ".repeat(lvl.saturating_sub(1)),
-            if lvl == 0 { "" } else { branch },
-            node.text,
-            if !node.children.is_empty() { "/" } else { "" }
-        );
+        let lvl = lvl.make_contiguous();
+        let tree = lvl[0..lvl.len() - 1]
+            .iter()
+            .skip(1)
+            .map(|b| if *b { "   " } else { "│  " })
+            .collect::<String>();
+        let is_root = node.parent_id.is_none();
+        let is_last = *lvl.last().unwrap();
+        let branch = if is_root {
+            ""
+        } else if is_last {
+            "└──"
+        } else {
+            "├──"
+        };
+        let node_text = format!("{}{}{}{}", tree, branch, node.text, if !node.children.is_empty() { "/" } else { "" });
         Text::raw(node_text).style(style).render(area, buf);
     }
 }
@@ -306,7 +327,7 @@ impl<'a> StatefulWidget for TreeWidgetRenderer<'a> {
         let mut node_id = state.visible_start_id;
         for y in tree_area.y..tree_area.y + tree_area.height {
             let area = Rect::new(tree_area.x, y, tree_area.width, 1);
-            self.render_node(area, buf, node_id, state, state.level(node_id));
+            self.render_node(area, buf, node_id, state, &mut state.level(node_id));
 
             if let Some(next_id) = state.next_visible(node_id) {
                 node_id = next_id;
@@ -517,10 +538,13 @@ mod tests {
         // root
         // ├─child1
         // │ ├─child2
-        // │ ├─child3
-        // │   ├─child4
+        // │ └─child3
+        // │   └─child4
         // ├─child5
-        // ├─child6
+        // └─child6
+        //   └─child7
+        //     └─child8
+        //       └─child9
         let mut tree_widget = TreeWidget::new("root".to_string());
         let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
         let child2_id = tree_widget.add_child("child2", child1_id);
@@ -528,14 +552,20 @@ mod tests {
         let child4_id = tree_widget.add_child("child4", child3_id);
         let child5_id = tree_widget.add_child("child5", tree_widget.root_id);
         let child6_id = tree_widget.add_child("child6", tree_widget.root_id);
+        let child7_id = tree_widget.add_child("child7", child6_id);
+        let child8_id = tree_widget.add_child("child8", child7_id);
+        let child9_id = tree_widget.add_child("child9", child8_id);
 
-        assert_eq!(tree_widget.level(tree_widget.root_id), 0);
-        assert_eq!(tree_widget.level(child1_id), 1);
-        assert_eq!(tree_widget.level(child2_id), 2);
-        assert_eq!(tree_widget.level(child3_id), 2);
-        assert_eq!(tree_widget.level(child4_id), 3);
-        assert_eq!(tree_widget.level(child5_id), 1);
-        assert_eq!(tree_widget.level(child6_id), 1);
+        assert_eq!(tree_widget.level(tree_widget.root_id), [true]);
+        assert_eq!(tree_widget.level(child1_id), [true, false]);
+        assert_eq!(tree_widget.level(child2_id), [true, false, false]);
+        assert_eq!(tree_widget.level(child3_id), [true, false, true]);
+        assert_eq!(tree_widget.level(child4_id), [true, false, true, true]);
+        assert_eq!(tree_widget.level(child5_id), [true, false]);
+        assert_eq!(tree_widget.level(child6_id), [true, true]);
+        assert_eq!(tree_widget.level(child7_id), [true, true, true]);
+        assert_eq!(tree_widget.level(child8_id), [true, true, true, true]);
+        assert_eq!(tree_widget.level(child9_id), [true, true, true, true, true]);
     }
 
     #[test]
