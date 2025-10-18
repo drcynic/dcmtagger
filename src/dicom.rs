@@ -111,7 +111,11 @@ impl DicomData {
                     } else {
                         element_len
                     };
-                    let element_text = format!("{:<width$}[{}] - {}", value, element_len, &entry.filename, width = field_width);
+                    let element_text = if tag == dicom_dictionary_std::tags::PIXEL_DATA {
+                        format!("[{}] - {}", element_len, &entry.filename)
+                    } else {
+                        format!("{:<width$}[{}] - {}", value, element_len, &entry.filename, width = field_width)
+                    };
                     tree_widget.add_child(&element_text, *tag_node_id);
                 }
             }
