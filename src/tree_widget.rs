@@ -1,5 +1,6 @@
 use std::collections::{HashSet, VecDeque};
 
+use dicom_core::Tag;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -10,19 +11,30 @@ use slotmap::SlotMap;
 
 pub type Id = slotmap::DefaultKey;
 
+#[derive(Debug)]
+pub struct TagSource {
+    #[allow(dead_code)]
+    pub tag: Tag,
+    #[allow(dead_code)]
+    pub filename: String,
+}
+
 #[derive(Debug, Default)]
 pub struct TreeNode {
     pub text: String,
     pub children: Vec<Id>,
     pub parent_id: Option<Id>,
+    #[allow(dead_code)]
+    pub source: Option<TagSource>,
 }
 
 impl TreeNode {
-    pub fn new(text: String) -> Self {
+    pub fn new(text: String, source: Option<TagSource>) -> Self {
         Self {
             text,
             children: Vec::new(),
             parent_id: None,
+            source,
         }
     }
 }
@@ -39,7 +51,7 @@ pub struct TreeWidget {
 impl TreeWidget {
     pub fn new(root_text: String) -> Self {
         let mut nodes = SlotMap::new();
-        let root_id = nodes.insert(TreeNode::new(root_text));
+        let root_id = nodes.insert(TreeNode::new(root_text, None));
         Self {
             root_id,
             visible_start_id: root_id,
@@ -49,8 +61,8 @@ impl TreeWidget {
         }
     }
 
-    pub fn add_child(&mut self, text: &str, parent_id: Id) -> Id {
-        let mut child = TreeNode::new(text.to_string());
+    pub fn add_child(&mut self, text: &str, parent_id: Id, source: Option<TagSource>) -> Id {
+        let mut child = TreeNode::new(text.to_string(), source);
         child.parent_id = Some(parent_id);
         let child_id = self.nodes.insert(child);
         let parent = self.nodes.get_mut(parent_id).unwrap();
@@ -355,7 +367,7 @@ mod tests {
     #[test]
     fn test_add_child() {
         let mut tree_widget = TreeWidget::new("root".to_string());
-        let child_id = tree_widget.add_child("child", tree_widget.root_id);
+        let child_id = tree_widget.add_child("child", tree_widget.root_id, None);
         let root_node = tree_widget.nodes.get(tree_widget.root_id).unwrap();
         let child_node = tree_widget.nodes.get(child_id).unwrap();
         assert_eq!(root_node.children.len(), 1);
@@ -367,7 +379,7 @@ mod tests {
     #[test]
     fn test_toggle_root() {
         let mut tree_widget = TreeWidget::new("root".to_string());
-        tree_widget.add_child("child", tree_widget.root_id);
+        tree_widget.add_child("child", tree_widget.root_id, None);
         assert!(!tree_widget.is_open(&tree_widget.root_id));
 
         tree_widget.toggle(tree_widget.root_id);
@@ -377,11 +389,11 @@ mod tests {
     #[test]
     fn test_toggle_child() {
         let mut tree_widget = TreeWidget::new("root".to_string());
-        let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
-        tree_widget.add_child("child2", child1_id);
-        tree_widget.add_child("child3", child1_id);
-        tree_widget.add_child("child4", tree_widget.root_id);
-        tree_widget.add_child("child5", tree_widget.root_id);
+        let child1_id = tree_widget.add_child("child1", tree_widget.root_id, None);
+        tree_widget.add_child("child2", child1_id, None);
+        tree_widget.add_child("child3", child1_id, None);
+        tree_widget.add_child("child4", tree_widget.root_id, None);
+        tree_widget.add_child("child5", tree_widget.root_id, None);
         assert!(!tree_widget.is_open(&child1_id));
 
         tree_widget.toggle(tree_widget.root_id);
@@ -392,7 +404,7 @@ mod tests {
     #[test]
     fn test_next_on_closed_root() {
         let mut tree_widget = TreeWidget::new("root".to_string());
-        tree_widget.add_child("child1", tree_widget.root_id);
+        tree_widget.add_child("child1", tree_widget.root_id, None);
 
         assert_eq!(tree_widget.selected_id, tree_widget.root_id);
         tree_widget.select_next(1);
@@ -402,7 +414,7 @@ mod tests {
     #[test]
     fn test_next_on_open_root() {
         let mut tree_widget = TreeWidget::new("root".to_string());
-        let child_id = tree_widget.add_child("child", tree_widget.root_id);
+        let child_id = tree_widget.add_child("child", tree_widget.root_id, None);
 
         assert_eq!(tree_widget.selected_id, tree_widget.root_id);
         tree_widget.open(tree_widget.root_id);
@@ -413,12 +425,12 @@ mod tests {
     #[test]
     fn test_next_for_closed_children() {
         let mut tree_widget = TreeWidget::new("root".to_string());
-        let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
-        tree_widget.add_child("child2", child1_id);
-        let child3_id = tree_widget.add_child("child3", child1_id);
-        tree_widget.add_child("child4", child3_id);
-        let child5_id = tree_widget.add_child("child5", tree_widget.root_id);
-        let child6_id = tree_widget.add_child("child6", tree_widget.root_id);
+        let child1_id = tree_widget.add_child("child1", tree_widget.root_id, None);
+        tree_widget.add_child("child2", child1_id, None);
+        let child3_id = tree_widget.add_child("child3", child1_id, None);
+        tree_widget.add_child("child4", child3_id, None);
+        let child5_id = tree_widget.add_child("child5", tree_widget.root_id, None);
+        let child6_id = tree_widget.add_child("child6", tree_widget.root_id, None);
         tree_widget.open(tree_widget.root_id);
 
         tree_widget.select_next(1);
@@ -441,12 +453,12 @@ mod tests {
         // ├─child5
         // ├─child6
         let mut tree_widget = TreeWidget::new("root".to_string());
-        let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
-        let child2_id = tree_widget.add_child("child2", child1_id);
-        let child3_id = tree_widget.add_child("child3", child1_id);
-        let child4_id = tree_widget.add_child("child4", child3_id);
-        let child5_id = tree_widget.add_child("child5", tree_widget.root_id);
-        let child6_id = tree_widget.add_child("child6", tree_widget.root_id);
+        let child1_id = tree_widget.add_child("child1", tree_widget.root_id, None);
+        let child2_id = tree_widget.add_child("child2", child1_id, None);
+        let child3_id = tree_widget.add_child("child3", child1_id, None);
+        let child4_id = tree_widget.add_child("child4", child3_id, None);
+        let child5_id = tree_widget.add_child("child5", tree_widget.root_id, None);
+        let child6_id = tree_widget.add_child("child6", tree_widget.root_id, None);
         tree_widget.open(tree_widget.root_id);
         tree_widget.open(child1_id);
         tree_widget.open(child3_id);
@@ -473,12 +485,12 @@ mod tests {
     #[test]
     fn test_prev_for_closed_children() {
         let mut tree_widget = TreeWidget::new("root".to_string());
-        let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
-        tree_widget.add_child("child2", child1_id);
-        let child3_id = tree_widget.add_child("child3", child1_id);
-        tree_widget.add_child("child4", child3_id);
-        let child5_id = tree_widget.add_child("child5", tree_widget.root_id);
-        let child6_id = tree_widget.add_child("child6", tree_widget.root_id);
+        let child1_id = tree_widget.add_child("child1", tree_widget.root_id, None);
+        tree_widget.add_child("child2", child1_id, None);
+        let child3_id = tree_widget.add_child("child3", child1_id, None);
+        tree_widget.add_child("child4", child3_id, None);
+        let child5_id = tree_widget.add_child("child5", tree_widget.root_id, None);
+        let child6_id = tree_widget.add_child("child6", tree_widget.root_id, None);
         tree_widget.selected_id = child6_id;
         tree_widget.open(tree_widget.root_id);
         assert_eq!(tree_widget.selected_id, child6_id);
@@ -503,12 +515,12 @@ mod tests {
         // ├─child5
         // ├─child6
         let mut tree_widget = TreeWidget::new("root".to_string());
-        let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
-        let child2_id = tree_widget.add_child("child2", child1_id);
-        let child3_id = tree_widget.add_child("child3", child1_id);
-        let child4_id = tree_widget.add_child("child4", child3_id);
-        let child5_id = tree_widget.add_child("child5", tree_widget.root_id);
-        let child6_id = tree_widget.add_child("child6", tree_widget.root_id);
+        let child1_id = tree_widget.add_child("child1", tree_widget.root_id, None);
+        let child2_id = tree_widget.add_child("child2", child1_id, None);
+        let child3_id = tree_widget.add_child("child3", child1_id, None);
+        let child4_id = tree_widget.add_child("child4", child3_id, None);
+        let child5_id = tree_widget.add_child("child5", tree_widget.root_id, None);
+        let child6_id = tree_widget.add_child("child6", tree_widget.root_id, None);
         tree_widget.open(tree_widget.root_id);
         tree_widget.open(child1_id);
         tree_widget.open(child3_id);
@@ -546,15 +558,15 @@ mod tests {
         //     └─child8
         //       └─child9
         let mut tree_widget = TreeWidget::new("root".to_string());
-        let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
-        let child2_id = tree_widget.add_child("child2", child1_id);
-        let child3_id = tree_widget.add_child("child3", child1_id);
-        let child4_id = tree_widget.add_child("child4", child3_id);
-        let child5_id = tree_widget.add_child("child5", tree_widget.root_id);
-        let child6_id = tree_widget.add_child("child6", tree_widget.root_id);
-        let child7_id = tree_widget.add_child("child7", child6_id);
-        let child8_id = tree_widget.add_child("child8", child7_id);
-        let child9_id = tree_widget.add_child("child9", child8_id);
+        let child1_id = tree_widget.add_child("child1", tree_widget.root_id, None);
+        let child2_id = tree_widget.add_child("child2", child1_id, None);
+        let child3_id = tree_widget.add_child("child3", child1_id, None);
+        let child4_id = tree_widget.add_child("child4", child3_id, None);
+        let child5_id = tree_widget.add_child("child5", tree_widget.root_id, None);
+        let child6_id = tree_widget.add_child("child6", tree_widget.root_id, None);
+        let child7_id = tree_widget.add_child("child7", child6_id, None);
+        let child8_id = tree_widget.add_child("child8", child7_id, None);
+        let child9_id = tree_widget.add_child("child9", child8_id, None);
 
         assert_eq!(tree_widget.level(tree_widget.root_id), [true]);
         assert_eq!(tree_widget.level(child1_id), [true, false]);
@@ -571,12 +583,12 @@ mod tests {
     #[test]
     fn test_visible_nodes_with_idx_closed() {
         let mut tree_widget = TreeWidget::new("root".to_string());
-        let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
-        tree_widget.add_child("child2", child1_id);
-        let child3_id = tree_widget.add_child("child3", child1_id);
-        tree_widget.add_child("child4", child3_id);
-        let child5_id = tree_widget.add_child("child5", tree_widget.root_id);
-        let child6_id = tree_widget.add_child("child6", tree_widget.root_id);
+        let child1_id = tree_widget.add_child("child1", tree_widget.root_id, None);
+        tree_widget.add_child("child2", child1_id, None);
+        let child3_id = tree_widget.add_child("child3", child1_id, None);
+        tree_widget.add_child("child4", child3_id, None);
+        let child5_id = tree_widget.add_child("child5", tree_widget.root_id, None);
+        let child6_id = tree_widget.add_child("child6", tree_widget.root_id, None);
         tree_widget.open(tree_widget.root_id);
 
         let vni = tree_widget.visible_nodes();
@@ -590,12 +602,12 @@ mod tests {
     #[test]
     fn test_visible_nodes_with_idx_all_open() {
         let mut tree_widget = TreeWidget::new("root".to_string());
-        let child1_id = tree_widget.add_child("child1", tree_widget.root_id);
-        let child2_id = tree_widget.add_child("child2", child1_id);
-        let child3_id = tree_widget.add_child("child3", child1_id);
-        let child4_id = tree_widget.add_child("child4", child3_id);
-        let child5_id = tree_widget.add_child("child5", tree_widget.root_id);
-        let child6_id = tree_widget.add_child("child6", tree_widget.root_id);
+        let child1_id = tree_widget.add_child("child1", tree_widget.root_id, None);
+        let child2_id = tree_widget.add_child("child2", child1_id, None);
+        let child3_id = tree_widget.add_child("child3", child1_id, None);
+        let child4_id = tree_widget.add_child("child4", child3_id, None);
+        let child5_id = tree_widget.add_child("child5", tree_widget.root_id, None);
+        let child6_id = tree_widget.add_child("child6", tree_widget.root_id, None);
         tree_widget.open(tree_widget.root_id);
         tree_widget.open(child1_id);
         tree_widget.open(child3_id);

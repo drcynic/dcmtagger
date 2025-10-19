@@ -4,28 +4,22 @@ use std::{fs, io};
 
 use anyhow::Result;
 use dicom_core::{Length, Tag};
-use dicom_object::InMemDicomObject;
+use dicom_object::{FileDicomObject, InMemDicomObject};
 
 use crate::tree_widget;
 
-pub type TagElement = dicom_core::DataElement<dicom_object::InMemDicomObject, Vec<u8>>;
+pub type TagElement = dicom_core::DataElement<InMemDicomObject, Vec<u8>>;
 
 #[derive(Debug, Default)]
 pub struct DicomData {
     root_path: PathBuf,
-    datasets_with_filename: Vec<DatasetEntry>,
+    datasets_by_filename: BTreeMap<String, FileDicomObject<InMemDicomObject>>,
     num_values_and_max_length_by_tag: HashMap<Tag, (usize, Option<u32>)>,
-}
-
-#[derive(Debug, Clone)]
-pub struct DatasetEntry {
-    pub filename: String,
-    pub dataset: dicom_object::FileDicomObject<InMemDicomObject>,
 }
 
 impl DicomData {
     pub fn new(path: &Path, skip_pixel_data: bool) -> Result<Self> {
-        let mut datasets_with_filename = Vec::new();
+        let mut datasets_by_filename = BTreeMap::new();
 
         if path.is_dir() {
             let mut dir_entries = fs::read_dir(path)?
@@ -38,17 +32,19 @@ impl DicomData {
                     continue;
                 }
 
-                datasets_with_filename.push(read_dataset(entry_path, skip_pixel_data)?);
+                let (filename, dataset) = read_dataset(entry_path, skip_pixel_data)?;
+                datasets_by_filename.insert(filename, dataset);
             }
         } else {
-            datasets_with_filename.push(read_dataset(path, skip_pixel_data)?);
+            let (filename, dataset) = read_dataset(path, skip_pixel_data)?;
+            datasets_by_filename.insert(filename, dataset);
         }
 
-        let num_values_and_max_length_by_tag = num_distinct_values_and_max_length_by_tag(&datasets_with_filename);
+        let num_values_and_max_length_by_tag = num_distinct_values_and_max_length_by_tag(&datasets_by_filename);
 
         Ok(Self {
             root_path: PathBuf::from(path),
-            datasets_with_filename,
+            datasets_by_filename,
             num_values_and_max_length_by_tag,
         })
     }
@@ -57,20 +53,21 @@ impl DicomData {
         let mut tree_widget = tree_widget::TreeWidget::new(self.root_path.display().to_string());
 
         if self.root_path.is_dir() {
-            for entry in &self.datasets_with_filename {
-                let parent_id = tree_widget.add_child(&entry.filename, tree_widget.root_id);
-                read_data_into_tree(&mut tree_widget, entry, parent_id);
+            for (filename, dataset) in &self.datasets_by_filename {
+                let parent_id = tree_widget.add_child(filename, tree_widget.root_id, None);
+                read_data_into_tree(&mut tree_widget, filename, dataset, parent_id);
             }
         } else {
             let parent_id = tree_widget.root_id;
-            read_data_into_tree(&mut tree_widget, &self.datasets_with_filename[0], parent_id);
+            let (filename, dataset) = self.datasets_by_filename.first_key_value().unwrap();
+            read_data_into_tree(&mut tree_widget, filename, dataset, parent_id);
         }
 
         tree_widget
     }
 
     pub fn tree_sorted_by_tag(&self, min_diff: usize) -> tree_widget::TreeWidget {
-        if self.datasets_with_filename.len() == 1 {
+        if self.datasets_by_filename.len() == 1 {
             return self.tree_sorted_by_filename();
         }
 
@@ -80,12 +77,12 @@ impl DicomData {
         let mut group_nodes_by_tag_group: BTreeMap<u16, slotmap::DefaultKey> = BTreeMap::new();
         let mut tag_nodes_id_by_tag: BTreeMap<Tag, slotmap::DefaultKey> = BTreeMap::new();
 
-        for entry in &self.datasets_with_filename {
-            for elem in entry.dataset.iter() {
+        for (filename, dataset) in &self.datasets_by_filename {
+            for elem in dataset.iter() {
                 let tag = elem.header().tag;
                 let group_node_id = group_nodes_by_tag_group.entry(tag.group()).or_insert_with(|| {
                     let group_tag_text = format!("{:04x}", tag.group());
-                    tree_widget.add_child(&group_tag_text, root_id)
+                    tree_widget.add_child(&group_tag_text, root_id, None)
                 });
                 let (num_values, max_length) = self.num_values_and_max_length_by_tag[&tag];
                 if num_values > min_diff {
@@ -97,7 +94,7 @@ impl DicomData {
                             format!(", {}", elem.header().len)
                         };
                         let tag_text = format!("{:04x} {} ({}{})", tag.element(), tag_name, elem.vr(), value_lengths_text);
-                        tree_widget.add_child(&tag_text, *group_node_id)
+                        tree_widget.add_child(&tag_text, *group_node_id, None)
                     });
                     let value = get_value_string(elem);
                     let element_len = elem.header().len;
@@ -112,11 +109,15 @@ impl DicomData {
                         element_len
                     };
                     let element_text = if tag == dicom_dictionary_std::tags::PIXEL_DATA {
-                        format!("[{}] - {}", element_len, &entry.filename)
+                        format!("[{}] - {}", element_len, filename)
                     } else {
-                        format!("{:<width$}[{}] - {}", value, element_len, &entry.filename, width = field_width)
+                        format!("{:<width$}[{}] - {}", value, element_len, filename, width = field_width)
                     };
-                    tree_widget.add_child(&element_text, *tag_node_id);
+                    let source = Some(tree_widget::TagSource {
+                        tag,
+                        filename: filename.to_string(),
+                    });
+                    tree_widget.add_child(&element_text, *tag_node_id, source);
                 }
             }
         }
@@ -125,7 +126,7 @@ impl DicomData {
     }
 }
 
-fn read_dataset(path: &Path, skip_pixel_data: bool) -> anyhow::Result<DatasetEntry> {
+fn read_dataset(path: &Path, skip_pixel_data: bool) -> anyhow::Result<(String, FileDicomObject<InMemDicomObject>)> {
     let dataset = if skip_pixel_data {
         dicom_object::OpenFileOptions::new()
             .read_until(dicom_dictionary_std::tags::PIXEL_DATA)
@@ -135,20 +136,25 @@ fn read_dataset(path: &Path, skip_pixel_data: bool) -> anyhow::Result<DatasetEnt
     };
     let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown").to_string();
 
-    Ok(DatasetEntry { filename, dataset })
+    Ok((filename, dataset))
 }
 
-fn read_data_into_tree(tree_widget: &mut tree_widget::TreeWidget, entry: &DatasetEntry, parent_id: slotmap::DefaultKey) {
+fn read_data_into_tree(
+    tree_widget: &mut tree_widget::TreeWidget,
+    filename: &str,
+    dataset: &FileDicomObject<InMemDicomObject>,
+    parent_id: slotmap::DefaultKey,
+) {
     let mut current_group_node_id = parent_id;
     let mut current_group = 0u16;
 
-    for elem in entry.dataset.iter() {
+    for elem in dataset.iter() {
         let tag = elem.header().tag;
 
         if current_group != tag.group() {
             current_group = tag.group();
             let group_text = format!("{:04x}", current_group);
-            current_group_node_id = tree_widget.add_child(&group_text, parent_id);
+            current_group_node_id = tree_widget.add_child(&group_text, parent_id, None);
         }
 
         let element_text = format!(
@@ -159,7 +165,12 @@ fn read_data_into_tree(tree_widget: &mut tree_widget::TreeWidget, entry: &Datase
             elem.header().len,
             get_value_string(elem)
         );
-        tree_widget.add_child(&element_text, current_group_node_id);
+
+        let source = Some(tree_widget::TagSource {
+            tag,
+            filename: filename.to_string(),
+        });
+        tree_widget.add_child(&element_text, current_group_node_id, source);
     }
 }
 
@@ -194,11 +205,13 @@ fn get_value_string(elem: &crate::dicom::TagElement) -> String {
     }
 }
 
-pub fn num_distinct_values_and_max_length_by_tag(datasets_with_filename: &[DatasetEntry]) -> HashMap<Tag, (usize, Option<u32>)> {
+pub fn num_distinct_values_and_max_length_by_tag(
+    datasets_by_filename: &BTreeMap<String, FileDicomObject<InMemDicomObject>>,
+) -> HashMap<Tag, (usize, Option<u32>)> {
     let mut values_by_tag: HashMap<Tag, (HashSet<String>, HashSet<u32>)> = HashMap::new();
 
-    for entry in datasets_with_filename {
-        for elem in entry.dataset.iter() {
+    for dataset in datasets_by_filename.values() {
+        for elem in dataset.iter() {
             let tag = elem.header().tag;
 
             let values_set = values_by_tag.entry(tag).or_default();
@@ -254,7 +267,7 @@ mod tests {
         };
         let load_duration = load_start.elapsed();
         println!("DicomData::new() execution time: {:?}", load_duration);
-        println!("Loaded {} datasets", dicom_data.datasets_with_filename.len());
+        println!("Loaded {} datasets", dicom_data.datasets_by_filename.len());
 
         // Measure tree_sorted_by_tag execution time
         let tree_start = Instant::now();
