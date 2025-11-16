@@ -1,5 +1,6 @@
 mod app;
 mod dicom;
+mod help;
 mod tree_widget;
 
 use app::{App, AppParameter};

@@ -39,8 +39,8 @@
   ctrl+f/page-down     - Move page down
   ctrl+b/page-up       - Move page up
 
-  n                    - search for next occurence if search text present
-  N                    - search for prev occurence if search text present
+  n                    - Search for next occurence if search text present
+  N                    - Search for prev occurence if search text present
 ```
 
 ### Search

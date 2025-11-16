@@ -10,12 +10,12 @@ use ratatui::{
     style::{Color, Style, Stylize},
     symbols::{self, border},
     text::{Line, Text},
-    widgets::{Block, Borders, Clear, Padding, Paragraph, StatefulWidget, Widget},
+    widgets::{Block, Borders, Padding, Paragraph, StatefulWidget, Widget},
 };
 use tui_textarea::{Input, TextArea};
 
 use crate::dicom::DicomData;
-use crate::tree_widget;
+use crate::{help, tree_widget};
 
 #[derive(Clone, Debug, Parser)]
 #[clap(name = "DICOM Tagger", version = format!("v{}", env!("CARGO_PKG_VERSION")))]
@@ -217,8 +217,7 @@ impl<'a> App<'a> {
     }
 
     fn scroll_help_down(&mut self) {
-        let help_lines = help_text().lines().collect::<Vec<&str>>();
-        let max_scroll = help_lines.len().saturating_sub(3);
+        let max_scroll = help::num_help_text_lines().saturating_sub(3);
         if self.help_scroll_offset < max_scroll {
             self.help_scroll_offset += 1;
         }
@@ -441,37 +440,6 @@ impl<'a> App<'a> {
 
         self.handler_text = "No matching node found".to_string();
     }
-
-    fn render_help_overlay(&self, area: Rect, buf: &mut Buffer) {
-        // Calculate centered popup area (roughly 60% width, 70% height)
-        let popup_width = (area.width as f32 * 0.6) as u16;
-        let popup_height = (area.height as f32 * 0.7) as u16;
-        let popup_x = (area.width.saturating_sub(popup_width)) / 2;
-        let popup_y = (area.height.saturating_sub(popup_height)) / 2;
-
-        let popup_area = Rect {
-            x: area.x + popup_x,
-            y: area.y + popup_y,
-            width: popup_width,
-            height: popup_height,
-        };
-
-        Clear.render(popup_area, buf);
-
-        // Get help text lines and handle scrolling
-        let help_lines = help_text().lines().collect::<Vec<&str>>();
-        let visible_height = popup_height.saturating_sub(2) as usize; // Account for borders
-        let start_line = self.help_scroll_offset;
-        let end_line = (start_line + visible_height).min(help_lines.len());
-        let help_text = help_lines[start_line..end_line].join("\n");
-
-        let help_block = Block::bordered()
-            .padding(Padding::horizontal(1))
-            .title(Line::from(" DICOM Tagger Help".bold()).centered())
-            .border_set(border::ROUNDED);
-
-        Paragraph::new(help_text).block(help_block).render(popup_area, buf);
-    }
 }
 
 impl<'a> Widget for &mut App<'a> {
@@ -521,38 +489,7 @@ impl<'a> Widget for &mut App<'a> {
 
         // Render help overlay if shown
         if self.mode == Mode::Help {
-            self.render_help_overlay(area, buf);
+            help::render_help_overlay(area, buf, self.help_scroll_offset);
         }
     }
-}
-
-pub const fn help_text() -> &'static str {
-    r#"Navigation:
-  ?                    - Show help
-  q/Esc                - Quit
-  1                    - Sort tree by filename
-  2                    - Sort tree by tags
-  3                    - Sort tree by tags, only showing tags with different values
-  k/↑/ctrl+p           - Move up
-  j/↓/ctrl+n           - Move down
-  h/←                  - Move to parent or close node
-  l/→                  - Expand node or move to first child
-  H/shift+←            - Move to parent
-  L/shift+→            - Move to next child (expand if collapsed)
-  J/shift+↓            - Move to next sibling (same level)
-  K/shift+↑            - Move to previous sibling (same level)
-  ctrl+u               - Move half page up
-  ctrl+d               - Move half page down
-  ctrl+f/page-down     - Move page down
-  ctrl+b/page-up       - Move page up
-  g                    - Move to first element
-  G                    - Move to last element
-  0/^                  - Move to first sibling
-  $                    - Move to last sibling
-  Enter/Space          - Toggle expand/collapse
-  c                    - Collapse current node and siblings
-  e                    - Expand current node and siblings
-  E                    - Expand current node recursively
-  C                    - Collapse current node recursively
-"#
 }
