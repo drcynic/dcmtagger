@@ -37,6 +37,7 @@ enum Mode {
     Browse,
     Help,
     Search,
+    Edit,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -122,6 +123,9 @@ impl<'a> App<'a> {
                 KeyCode::Char('/') => {
                     self.setup_input_edit('/');
                 }
+                KeyCode::Char('i') => {
+                    self.switch_to_edit_mode_if_possible();
+                }
                 KeyCode::Up if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_prev_sibling(),
                 KeyCode::Char('K') => self.move_to_prev_sibling(),
                 KeyCode::Down if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_next_sibling(),
@@ -188,12 +192,29 @@ impl<'a> App<'a> {
                     }
                 }
             },
+            Mode::Edit => {
+                if key_event.code == KeyCode::Esc {
+                    self.handler_text = "back to browsing".to_string();
+                    self.mode = Mode::Browse
+                }
+            }
             Mode::Help => match key_event.code {
                 KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => self.hide_help(),
                 KeyCode::Up | KeyCode::Char('k') => self.scroll_help_up(),
                 KeyCode::Down | KeyCode::Char('j') => self.scroll_help_down(),
                 _ => {}
             },
+        }
+    }
+
+    fn switch_to_edit_mode_if_possible(&mut self) {
+        if let Some(node) = self.tree_widget.nodes.get(self.tree_widget.selected_id)
+            && let Some(source) = &node.source
+        {
+            self.handler_text = format!("i -> enter edit mode for tag: {}", source.tag).to_string();
+            self.mode = Mode::Edit;
+        } else {
+            self.handler_text = "i -> no editable tag selected".to_string();
         }
     }
 

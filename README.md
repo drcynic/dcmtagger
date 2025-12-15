@@ -9,6 +9,7 @@
   1                    - Sort tree by filename
   2                    - Sort tree by tags
   3                    - Sort tree by tags, only showing tags with different values
+  i                    - Enter edit mode for selected tag
   /                    - Enter search mode
   ?                    - Show help
 ```
