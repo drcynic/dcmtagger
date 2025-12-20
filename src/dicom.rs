@@ -74,6 +74,7 @@ impl DicomData {
         let mut tree_widget = tree_widget::TreeWidget::new(self.root_path.display().to_string());
         let root_id = tree_widget.root_id;
 
+        //
         let mut group_nodes_by_tag_group: BTreeMap<u16, slotmap::DefaultKey> = BTreeMap::new();
         let mut tag_nodes_id_by_tag: BTreeMap<Tag, slotmap::DefaultKey> = BTreeMap::new();
 
@@ -165,12 +166,44 @@ fn read_data_into_tree(
             elem.header().len,
             get_value_string(elem)
         );
-
         let source = Some(tree_widget::TagSource {
             tag,
             filename: filename.to_string(),
         });
-        tree_widget.add_child(&element_text, current_group_node_id, source);
+        if elem.vr() == dicom_core::VR::SQ {
+            parse_seq(tree_widget, current_group_node_id, elem, &element_text, source);
+        } else {
+            tree_widget.add_child(&element_text, current_group_node_id, source);
+        }
+    }
+}
+
+fn parse_seq(
+    tree_widget: &mut tree_widget::TreeWidget,
+    parent_id: slotmap::DefaultKey,
+    elem: &dicom_core::DataElement<InMemDicomObject>,
+    element_text: &String,
+    source: Option<tree_widget::TagSource>,
+) {
+    let seq_node_id = tree_widget.add_child(element_text, parent_id, source);
+    let g_items = elem.value().items().unwrap();
+    for item in g_items {
+        for elem in item {
+            let tag = elem.header().tag;
+            let element_text = format!(
+                "{:04x} {} ({}, {}): {}",
+                tag.element(),
+                get_tag_name(elem),
+                elem.vr(),
+                elem.header().len,
+                get_value_string(elem)
+            );
+            if elem.vr() == dicom_core::VR::SQ {
+                parse_seq(tree_widget, seq_node_id, elem, &element_text, None);
+            } else {
+                tree_widget.add_child(&element_text, seq_node_id, None);
+            }
+        }
     }
 }
 
