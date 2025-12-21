@@ -188,7 +188,12 @@ fn read_seq(
     seq: &dicom_core::value::DataSetSequence<InMemDicomObject>,
     parent_id: slotmap::DefaultKey,
 ) {
-    for item in seq.items() {
+    for (idx, item) in seq.items().iter().enumerate() {
+        let parent_id = if seq.multiplicity() > 1 {
+            tree_widget.add_child(&format!("Item {}", idx + 1), parent_id, None)
+        } else {
+            parent_id
+        };
         for elem in item {
             let tag = elem.header().tag;
             let (element_text, source) = text_and_source(filename, elem, tag);
