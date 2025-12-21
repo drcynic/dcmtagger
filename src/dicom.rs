@@ -158,50 +158,43 @@ fn read_data_into_tree(
             current_group_node_id = tree_widget.add_child(&group_text, parent_id, None);
         }
 
-        let element_text = format!(
-            "{:04x} {} ({}, {}): {}",
-            tag.element(),
-            get_tag_name(elem),
-            elem.vr(),
-            elem.header().len,
-            get_value_string(elem)
-        );
-        let source = Some(tree_widget::TagSource {
-            tag,
-            filename: filename.to_string(),
-        });
-        if elem.vr() == dicom_core::VR::SQ {
-            parse_seq(tree_widget, current_group_node_id, elem, &element_text, source);
-        } else {
-            tree_widget.add_child(&element_text, current_group_node_id, source);
+        let (element_text, source) = text_and_source(filename, elem, tag);
+        let id = tree_widget.add_child(&element_text, current_group_node_id, source);
+        if let dicom_core::DicomValue::Sequence(seq) = elem.value() {
+            read_seq(tree_widget, filename, seq, id); // if it's a sequence read it into own nodes
         }
     }
 }
 
-fn parse_seq(
+fn text_and_source(filename: &str, elem: &dicom_core::DataElement<InMemDicomObject>, tag: Tag) -> (String, Option<tree_widget::TagSource>) {
+    let element_text = format!(
+        "{:04x} {} ({}, {}): {}",
+        tag.element(),
+        get_tag_name(elem),
+        elem.vr(),
+        elem.header().len,
+        get_value_string(elem)
+    );
+    let source = Some(tree_widget::TagSource {
+        tag,
+        filename: filename.to_string(),
+    });
+    (element_text, source)
+}
+
+fn read_seq(
     tree_widget: &mut tree_widget::TreeWidget,
+    filename: &str,
+    seq: &dicom_core::value::DataSetSequence<InMemDicomObject>,
     parent_id: slotmap::DefaultKey,
-    elem: &dicom_core::DataElement<InMemDicomObject>,
-    element_text: &String,
-    source: Option<tree_widget::TagSource>,
 ) {
-    let seq_node_id = tree_widget.add_child(element_text, parent_id, source);
-    let g_items = elem.value().items().unwrap();
-    for item in g_items {
+    for item in seq.items() {
         for elem in item {
             let tag = elem.header().tag;
-            let element_text = format!(
-                "{:04x} {} ({}, {}): {}",
-                tag.element(),
-                get_tag_name(elem),
-                elem.vr(),
-                elem.header().len,
-                get_value_string(elem)
-            );
-            if elem.vr() == dicom_core::VR::SQ {
-                parse_seq(tree_widget, seq_node_id, elem, &element_text, None);
-            } else {
-                tree_widget.add_child(&element_text, seq_node_id, None);
+            let (element_text, source) = text_and_source(filename, elem, tag);
+            let id = tree_widget.add_child(&element_text, parent_id, source);
+            if let dicom_core::DicomValue::Sequence(seq) = elem.value() {
+                read_seq(tree_widget, filename, seq, id);
             }
         }
     }
@@ -232,7 +225,11 @@ fn get_value_string(elem: &crate::dicom::TagElement) -> String {
             }
         }
         dicom_core::DicomValue::Sequence(seq) => {
-            format!("sequence with {} items", seq.items().len())
+            format!(
+                "sequence with {} item{}",
+                seq.multiplicity(),
+                if seq.items().len() > 1 { "s" } else { "" }
+            )
         }
         dicom_core::DicomValue::PixelSequence(_) => "pixel sequence".to_string(),
     }
