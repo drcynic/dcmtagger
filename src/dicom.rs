@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::{fs, io};
 
 use anyhow::Result;
+use dicom_core::header::Header;
 use dicom_core::{Length, Tag};
 use dicom_object::{FileDicomObject, InMemDicomObject};
 
@@ -67,8 +68,17 @@ impl DicomData {
     }
 
     pub fn tree_sorted_by_tag(&self, min_diff: usize) -> tree_widget::TreeWidget {
+        // if there is only one file, check if this is a multi-frame file, if not show simply by filename
         if self.datasets_by_filename.len() == 1 {
-            return self.tree_sorted_by_filename();
+            let frame_tag = self
+                .datasets_by_filename
+                .first_key_value()
+                .unwrap()
+                .1
+                .element(dicom_dictionary_std::tags::NUMBER_OF_FRAMES);
+            if frame_tag.is_err() || frame_tag.unwrap().to_int::<i32>().unwrap() == 1 {
+                return self.tree_sorted_by_filename();
+            }
         }
 
         let mut tree_widget = tree_widget::TreeWidget::new(self.root_path.display().to_string());
@@ -86,40 +96,45 @@ impl DicomData {
                     tree_widget.add_child(&group_tag_text, root_id, None)
                 });
                 let (num_values, max_length) = self.num_values_and_max_length_by_tag[&tag];
-                if num_values > min_diff {
-                    let tag_node_id = tag_nodes_id_by_tag.entry(tag).or_insert_with(|| {
-                        let tag_name = get_tag_name(elem);
-                        let value_lengths_text = if max_length.is_some() {
-                            String::new() // will be done per element
-                        } else {
-                            format!(", {}", elem.header().len)
-                        };
-                        let tag_text = format!("{:04x} {} ({}{})", tag.element(), tag_name, elem.vr(), value_lengths_text);
-                        tree_widget.add_child(&tag_text, *group_node_id, None)
-                    });
-                    let value = get_value_string(elem);
-                    let element_len = elem.header().len;
-                    let element_len = if element_len.0 == Length::UNDEFINED.0 {
-                        5
-                    } else {
-                        element_len.0 as usize
-                    };
-                    let field_width = if let Some(max_length) = max_length {
-                        max_length as usize
-                    } else {
-                        element_len
-                    };
-                    let element_text = if tag == dicom_dictionary_std::tags::PIXEL_DATA {
-                        format!("[{}] - {}", element_len, filename)
-                    } else {
-                        format!("{:<width$}[{}] - {}", value, element_len, filename, width = field_width)
-                    };
-                    let source = Some(tree_widget::TagSource {
-                        tag,
-                        filename: filename.to_string(),
-                    });
-                    tree_widget.add_child(&element_text, *tag_node_id, source);
+                if num_values <= min_diff {
+                    continue; // no diff -> don't show
                 }
+
+                let tag_node_id = tag_nodes_id_by_tag.entry(tag).or_insert_with(|| {
+                    let tag_name = get_tag_name(elem);
+                    let value_lengths_text = if max_length.is_some() {
+                        String::new() // will be done per element
+                    } else {
+                        format!(", {}", elem.header().len)
+                    };
+                    let tag_text = format!("{:04x} {} ({}{})", tag.element(), tag_name, elem.vr(), value_lengths_text);
+                    tree_widget.add_child(&tag_text, *group_node_id, None)
+                });
+                let value = get_value_string(elem);
+                let element_len = elem.header().len;
+                let element_len = if element_len.0 == Length::UNDEFINED.0 {
+                    5
+                } else {
+                    element_len.0 as usize
+                };
+                let mut field_width = if let Some(max_length) = max_length {
+                    max_length as usize
+                } else {
+                    element_len
+                };
+                if field_width > 10 {
+                    field_width = 10;
+                }
+                let element_text = if tag == dicom_dictionary_std::tags::PIXEL_DATA {
+                    format!("[{}] - {}", element_len, filename)
+                } else {
+                    format!("{:<width$}[{}] - {}", value, element_len, filename, width = field_width)
+                };
+                let source = Some(tree_widget::TagSource {
+                    tag,
+                    filename: filename.to_string(),
+                });
+                tree_widget.add_child(&element_text, *tag_node_id, source);
             }
         }
 
@@ -249,9 +264,13 @@ pub fn num_distinct_values_and_max_length_by_tag(
         for elem in dataset.iter() {
             let tag = elem.header().tag;
 
-            let values_set = values_by_tag.entry(tag).or_default();
-            values_set.0.insert(get_value_string(elem));
-            values_set.1.insert(elem.header().len.0);
+            if elem.is_sequence_delimiter() {
+                //
+            } else {
+                let values_set = values_by_tag.entry(tag).or_default();
+                values_set.0.insert(get_value_string(elem));
+                values_set.1.insert(elem.header().len.0);
+            }
         }
     }
 
