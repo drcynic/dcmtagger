@@ -241,7 +241,10 @@ fn get_value_string(elem: &crate::dicom::TagElement) -> String {
                     value_str
                 }
             } else {
-                "<binary data>".to_string()
+                // !todo: this is not a general solution, but needed for some specific datasets
+                let bytes = primitive_value.to_bytes();
+                let s = String::from_utf8_lossy(&bytes);
+                s.to_string()
             }
         }
         dicom_core::DicomValue::Sequence(seq) => {
