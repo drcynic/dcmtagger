@@ -233,23 +233,7 @@ fn get_tag_name(elem: &crate::dicom::TagElement) -> String {
 fn get_value_string(elem: &crate::dicom::TagElement) -> String {
     match elem.value() {
         dicom_core::DicomValue::Primitive(primitive_value) => match elem.vr() {
-            dicom_core::VR::OW => {
-                let bytes = primitive_value.to_bytes();
-                let words: Vec<String> = bytes
-                    .chunks(2)
-                    .take(30)
-                    .map(|w| {
-                        if w.len() == 2 {
-                            format!("{:02X}{:02X}", w[0], w[1])
-                        } else {
-                            format!("{:02X}", w[0])
-                        }
-                    })
-                    .collect();
-                let ellipsis = if bytes.len() / 2 > 30 { " ..." } else { "" };
-                format!("{}{}", words.join(" "), ellipsis)
-            }
-            dicom_core::VR::OB => {
+            dicom_core::VR::OB | dicom_core::VR::OW => {
                 let bytes = primitive_value.to_bytes();
                 let hex_bytes: Vec<String> = bytes.iter().take(30).map(|b| format!("{:02X}", b)).collect();
                 let ellipsis = if bytes.len() > 30 { " ..." } else { "" };
