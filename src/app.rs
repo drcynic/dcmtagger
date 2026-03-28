@@ -121,10 +121,13 @@ impl<'a> App<'a> {
                 KeyCode::Char('q') | KeyCode::Esc => self.exit(),
                 KeyCode::Char('?') => self.show_help(),
                 KeyCode::Char('/') => {
-                    self.setup_input_edit('/');
+                    self.mode = Mode::Search;
+                    self.search_start_node_id = self.tree_widget.selected_id;
+                    self.setup_input_edit("/");
                 }
                 KeyCode::Char('i') => {
                     self.switch_to_edit_mode_if_possible();
+                    self.setup_input_edit("");
                 }
                 KeyCode::Up if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_prev_sibling(),
                 KeyCode::Char('K') => self.move_to_prev_sibling(),
@@ -192,12 +195,29 @@ impl<'a> App<'a> {
                     }
                 }
             },
-            Mode::Edit => {
-                if key_event.code == KeyCode::Esc {
+            Mode::Edit => match key_event.code {
+                KeyCode::Esc | KeyCode::Enter => {
                     self.handler_text = "back to browsing".to_string();
-                    self.mode = Mode::Browse
+                    self.mode = Mode::Browse;
+                    self.text_area.move_cursor(tui_textarea::CursorMove::Head);
+                    self.text_area.delete_line_by_end();
+                    self.text_area.set_cursor_style(Style::default());
+                    self.input_text = None;
                 }
-            }
+                _ => {
+                    let input = Input::from(key_event);
+                    if self.text_area.input(input) {
+                        let current_text = &self.text_area.lines()[0];
+                        self.input_text = if current_text.is_empty() {
+                            self.mode = Mode::Browse;
+                            self.text_area.set_cursor_style(Style::default());
+                            None
+                        } else {
+                            Some(current_text.to_string())
+                        };
+                    }
+                }
+            },
             Mode::Help => match key_event.code {
                 KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => self.hide_help(),
                 KeyCode::Up | KeyCode::Char('k') => self.scroll_help_up(),
@@ -213,6 +233,11 @@ impl<'a> App<'a> {
         {
             self.handler_text = format!("i -> enter edit mode for tag: {}", source.tag).to_string();
             self.mode = Mode::Edit;
+
+            if let Some(node) = self.tree_widget.nodes.get(self.tree_widget.selected_id) {
+                self.input_text = Some(node.text.clone());
+                todo!("set input text from node value");
+            }
         } else {
             self.handler_text = "i -> no editable tag selected".to_string();
         }
@@ -244,13 +269,11 @@ impl<'a> App<'a> {
         }
     }
 
-    fn setup_input_edit(&mut self, start_char: char) {
-        self.mode = Mode::Search;
-        self.search_start_node_id = self.tree_widget.selected_id;
+    fn setup_input_edit(&mut self, start_text: &str) {
         let start_text = vec![if let Some(text) = &self.input_text {
             text.to_string()
         } else {
-            start_char.to_string()
+            start_text.to_string()
         }];
         self.text_area = TextArea::new(start_text);
         self.text_area.move_cursor(tui_textarea::CursorMove::End);
