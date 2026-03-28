@@ -19,7 +19,7 @@ use crate::{help, tree_widget};
 
 #[derive(Clone, Debug, Parser)]
 #[clap(name = "DICOM Tagger", version = format!("v{}", env!("CARGO_PKG_VERSION")))]
-#[clap(about = "Copyright (c) 2025 Daniel Szymanski")]
+#[clap(about = "Copyright (c) 2026 Daniel Szymanski")]
 pub struct AppParameter {
     #[clap(value_parser)]
     pub input_path: String,
