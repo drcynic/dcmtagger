@@ -16,6 +16,7 @@ use tui_textarea::{Input, TextArea};
 
 use crate::dicom::DicomData;
 use crate::help::HelpOverlay;
+use crate::tag_edit::TagEdit;
 use crate::tree_widget;
 
 #[derive(Clone, Debug, Parser)]
@@ -38,7 +39,7 @@ enum Mode {
     Browse,
     Help(HelpOverlay),
     Search,
-    Edit,
+    Edit(TagEdit),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -127,7 +128,6 @@ impl<'a> App<'a> {
                 }
                 KeyCode::Char('i') => {
                     self.switch_to_edit_mode_if_possible();
-                    self.setup_input_edit("");
                 }
                 KeyCode::Up if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_prev_sibling(),
                 KeyCode::Char('K') => self.move_to_prev_sibling(),
@@ -195,28 +195,12 @@ impl<'a> App<'a> {
                     }
                 }
             },
-            Mode::Edit => match key_event.code {
+            Mode::Edit(ref mut _tag_edit) => match key_event.code {
                 KeyCode::Esc | KeyCode::Enter => {
                     self.handler_text = "back to browsing".to_string();
                     self.mode = Mode::Browse;
-                    self.text_area.move_cursor(tui_textarea::CursorMove::Head);
-                    self.text_area.delete_line_by_end();
-                    self.text_area.set_cursor_style(Style::default());
-                    self.input_text = None;
                 }
-                _ => {
-                    let input = Input::from(key_event);
-                    if self.text_area.input(input) {
-                        let current_text = &self.text_area.lines()[0];
-                        self.input_text = if current_text.is_empty() {
-                            self.mode = Mode::Browse;
-                            self.text_area.set_cursor_style(Style::default());
-                            None
-                        } else {
-                            Some(current_text.to_string())
-                        };
-                    }
-                }
+                _ => {}
             },
             Mode::Help(ref mut help_overlay) => match key_event.code {
                 KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => self.hide_help(),
@@ -231,13 +215,24 @@ impl<'a> App<'a> {
         if let Some(node) = self.tree_widget.nodes.get(self.tree_widget.selected_id)
             && let Some(source) = &node.source
         {
-            self.handler_text = format!("i -> enter edit mode for tag: {}", source.tag).to_string();
-            self.mode = Mode::Edit;
+            use dicom_core::DataDictionary;
+            let dict = dicom_dictionary_std::StandardDataDictionary;
+            let tag = source.tag;
+            let name = dict
+                .by_tag(tag)
+                .map(|info| info.alias.to_string())
+                .unwrap_or_else(|| "<unknown>".to_string());
 
-            if let Some(node) = self.tree_widget.nodes.get(self.tree_widget.selected_id) {
-                self.input_text = Some(node.text.clone());
-                todo!("set input text from node value");
-            }
+            // Re-derive VR from the data dictionary; fall back to "??" if not found.
+            let vr = dict
+                .by_tag(tag)
+                .map(|info| info.vr.relaxed().to_string().to_owned())
+                .unwrap_or_else(|| "??".to_owned());
+
+            let current_value = node.text.clone();
+
+            self.handler_text = format!("editing tag: {}", tag);
+            self.mode = Mode::Edit(TagEdit::new(tag, name, vr, current_value));
         } else {
             self.handler_text = "i -> no editable tag selected".to_string();
         }
@@ -517,9 +512,11 @@ impl<'a> Widget for &mut App<'a> {
         self.text_area.set_block(input_block);
         self.text_area.render(input_area, buf);
 
-        // Render help overlay if shown
-        if let Mode::Help(ref mut help_overlay) = self.mode {
-            help_overlay.render(area, buf);
+        // Render overlay if shown
+        match self.mode {
+            Mode::Help(ref mut help_overlay) => help_overlay.render(area, buf),
+            Mode::Edit(ref mut tag_edit) => tag_edit.render(area, buf),
+            _ => {}
         }
     }
 }

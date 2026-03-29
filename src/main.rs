@@ -1,6 +1,7 @@
 mod app;
 mod dicom;
 mod help;
+mod tag_edit;
 mod tree_widget;
 
 use app::{App, AppParameter};
