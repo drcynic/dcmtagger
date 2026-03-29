@@ -15,7 +15,8 @@ use ratatui::{
 use tui_textarea::{Input, TextArea};
 
 use crate::dicom::DicomData;
-use crate::{help, tree_widget};
+use crate::help::HelpOverlay;
+use crate::tree_widget;
 
 #[derive(Clone, Debug, Parser)]
 #[clap(name = "DICOM Tagger", version = format!("v{}", env!("CARGO_PKG_VERSION")))]
@@ -35,7 +36,7 @@ pub struct AppParameter {
 enum Mode {
     #[default]
     Browse,
-    Help,
+    Help(HelpOverlay),
     Search,
     Edit,
 }
@@ -58,7 +59,6 @@ pub struct App<'a> {
     search_start_node_id: tree_widget::Id,
     handler_text: String,
     exit: bool,
-    help_scroll_offset: usize,
     show_debug_info: bool,
 }
 
@@ -218,10 +218,10 @@ impl<'a> App<'a> {
                     }
                 }
             },
-            Mode::Help => match key_event.code {
+            Mode::Help(ref mut help_overlay) => match key_event.code {
                 KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => self.hide_help(),
-                KeyCode::Up | KeyCode::Char('k') => self.scroll_help_up(),
-                KeyCode::Down | KeyCode::Char('j') => self.scroll_help_down(),
+                KeyCode::Up | KeyCode::Char('k') => help_overlay.scroll_up(),
+                KeyCode::Down | KeyCode::Char('j') => help_overlay.scroll_down(),
                 _ => {}
             },
         }
@@ -248,25 +248,11 @@ impl<'a> App<'a> {
     }
 
     fn show_help(&mut self) {
-        self.mode = Mode::Help;
-        self.help_scroll_offset = 0;
+        self.mode = Mode::Help(HelpOverlay::new());
     }
 
     fn hide_help(&mut self) {
         self.mode = Mode::Browse;
-    }
-
-    fn scroll_help_up(&mut self) {
-        if self.help_scroll_offset > 0 {
-            self.help_scroll_offset -= 1;
-        }
-    }
-
-    fn scroll_help_down(&mut self) {
-        let max_scroll = help::num_help_text_lines().saturating_sub(3);
-        if self.help_scroll_offset < max_scroll {
-            self.help_scroll_offset += 1;
-        }
     }
 
     fn setup_input_edit(&mut self, start_text: &str) {
@@ -532,8 +518,8 @@ impl<'a> Widget for &mut App<'a> {
         self.text_area.render(input_area, buf);
 
         // Render help overlay if shown
-        if self.mode == Mode::Help {
-            help::render_help_overlay(area, buf, self.help_scroll_offset);
+        if let Mode::Help(ref mut help_overlay) = self.mode {
+            help_overlay.render(area, buf);
         }
     }
 }

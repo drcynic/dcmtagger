@@ -11,7 +11,35 @@ use std::sync::LazyLock;
 
 static HELP_TEXT: LazyLock<Vec<&str>> = LazyLock::new(help_text);
 
-pub fn render_help_overlay(area: Rect, buf: &mut Buffer, scroll_offset: usize) {
+#[derive(Debug, Default, PartialEq)]
+pub struct HelpOverlay {
+    scroll_offset: usize,
+}
+
+impl HelpOverlay {
+    pub fn new() -> Self {
+        Self { scroll_offset: 0 }
+    }
+
+    pub fn render(&mut self, area: Rect, buf: &mut Buffer) {
+        render_help_overlay(area, buf, self.scroll_offset);
+    }
+
+    pub fn scroll_up(&mut self) {
+        if self.scroll_offset > 0 {
+            self.scroll_offset -= 1;
+        }
+    }
+
+    pub fn scroll_down(&mut self) {
+        let max_scroll = num_help_text_lines().saturating_sub(3);
+        if self.scroll_offset < max_scroll {
+            self.scroll_offset += 1;
+        }
+    }
+}
+
+fn render_help_overlay(area: Rect, buf: &mut Buffer, scroll_offset: usize) {
     // Calculate centered popup area (roughly 60% width, 70% height)
     let popup_width = (area.width as f32 * 0.6) as u16;
     let popup_height = (area.height as f32 * 0.7) as u16;
@@ -44,11 +72,11 @@ pub fn render_help_overlay(area: Rect, buf: &mut Buffer, scroll_offset: usize) {
     Paragraph::new(help_text).block(help_block).render(popup_area, buf);
 }
 
-pub fn num_help_text_lines() -> usize {
+fn num_help_text_lines() -> usize {
     HELP_TEXT.len()
 }
 
-pub fn help_text<'a>() -> Vec<&'a str> {
+fn help_text<'a>() -> Vec<&'a str> {
     raw_help_text().lines().collect::<Vec<&'a str>>()
 }
 
