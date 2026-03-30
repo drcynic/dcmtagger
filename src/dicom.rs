@@ -11,6 +11,12 @@ use crate::tree_widget;
 
 pub type TagElement = dicom_core::DataElement<InMemDicomObject, Vec<u8>>;
 
+#[derive(Debug)]
+pub struct TagSource {
+    pub tag: Tag,
+    pub filename: String,
+}
+
 #[derive(Debug, Default)]
 pub struct DicomData {
     root_path: PathBuf,
@@ -48,6 +54,10 @@ impl DicomData {
             datasets_by_filename,
             num_values_and_max_length_by_tag,
         })
+    }
+
+    pub fn dicom_obj_for_source(&self, source: &TagSource) -> Option<&FileDicomObject<InMemDicomObject>> {
+        self.datasets_by_filename.get(&source.filename)
     }
 
     pub fn tree_sorted_by_filename(&self) -> tree_widget::TreeWidget {
@@ -130,7 +140,7 @@ impl DicomData {
                 } else {
                     format!("{:<width$}[{}] - {}", value, element_len, filename, width = field_width)
                 };
-                let source = Some(tree_widget::TagSource {
+                let source = Some(TagSource {
                     tag,
                     filename: filename.to_string(),
                 });
@@ -181,7 +191,7 @@ fn read_data_into_tree(
     }
 }
 
-fn text_and_source(filename: &str, elem: &dicom_core::DataElement<InMemDicomObject>, tag: Tag) -> (String, Option<tree_widget::TagSource>) {
+fn text_and_source(filename: &str, elem: &dicom_core::DataElement<InMemDicomObject>, tag: Tag) -> (String, Option<TagSource>) {
     let element_text = format!(
         "{:04x} {} ({}, {}): {}",
         tag.element(),
@@ -190,7 +200,7 @@ fn text_and_source(filename: &str, elem: &dicom_core::DataElement<InMemDicomObje
         elem.header().len,
         get_value_string(elem)
     );
-    let source = Some(tree_widget::TagSource {
+    let source = Some(TagSource {
         tag,
         filename: filename.to_string(),
     });
@@ -220,7 +230,7 @@ fn read_seq(
     }
 }
 
-fn get_tag_name(elem: &crate::dicom::TagElement) -> String {
+pub fn get_tag_name(elem: &crate::dicom::TagElement) -> String {
     use dicom_core::DataDictionary;
     let dict = dicom_dictionary_std::StandardDataDictionary;
     if let Some(tag_info) = dict.by_tag(elem.header().tag) {
@@ -230,7 +240,7 @@ fn get_tag_name(elem: &crate::dicom::TagElement) -> String {
     }
 }
 
-fn get_value_string(elem: &crate::dicom::TagElement) -> String {
+pub fn get_value_string(elem: &crate::dicom::TagElement) -> String {
     match elem.value() {
         dicom_core::DicomValue::Primitive(primitive_value) => match elem.vr() {
             dicom_core::VR::OB | dicom_core::VR::OW => {

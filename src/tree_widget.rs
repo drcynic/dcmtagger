@@ -1,6 +1,6 @@
 use std::collections::{HashSet, VecDeque};
 
-use dicom_core::Tag;
+use crate::dicom::TagSource;
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
@@ -10,14 +10,6 @@ use ratatui::{
 use slotmap::SlotMap;
 
 pub type Id = slotmap::DefaultKey;
-
-#[derive(Debug)]
-pub struct TagSource {
-    #[allow(dead_code)]
-    pub tag: Tag,
-    #[allow(dead_code)]
-    pub filename: String,
-}
 
 #[derive(Debug, Default)]
 pub struct TreeNode {

@@ -127,7 +127,7 @@ impl<'a> App<'a> {
                     self.setup_input_edit("/");
                 }
                 KeyCode::Char('i') => {
-                    self.switch_to_edit_mode_if_possible();
+                    self.switch_to_edit_mode();
                 }
                 KeyCode::Up if key_event.modifiers.contains(KeyModifiers::SHIFT) => self.move_to_prev_sibling(),
                 KeyCode::Char('K') => self.move_to_prev_sibling(),
@@ -211,28 +211,13 @@ impl<'a> App<'a> {
         }
     }
 
-    fn switch_to_edit_mode_if_possible(&mut self) {
+    fn switch_to_edit_mode(&mut self) {
         if let Some(node) = self.tree_widget.nodes.get(self.tree_widget.selected_id)
             && let Some(source) = &node.source
+            && let Some(dataset) = self.dicom_data.dicom_obj_for_source(source)
+            && let Ok(element) = dataset.element(source.tag)
         {
-            use dicom_core::DataDictionary;
-            let dict = dicom_dictionary_std::StandardDataDictionary;
-            let tag = source.tag;
-            let name = dict
-                .by_tag(tag)
-                .map(|info| info.alias.to_string())
-                .unwrap_or_else(|| "<unknown>".to_string());
-
-            // Re-derive VR from the data dictionary; fall back to "??" if not found.
-            let vr = dict
-                .by_tag(tag)
-                .map(|info| info.vr.relaxed().to_string().to_owned())
-                .unwrap_or_else(|| "??".to_owned());
-
-            let current_value = node.text.clone();
-
-            self.handler_text = format!("editing tag: {}", tag);
-            self.mode = Mode::Edit(TagEdit::new(tag, name, vr, current_value));
+            self.mode = Mode::Edit(TagEdit::new(source.tag, element));
         } else {
             self.handler_text = "i -> no editable tag selected".to_string();
         }
