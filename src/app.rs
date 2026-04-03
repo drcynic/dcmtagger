@@ -33,7 +33,7 @@ pub struct AppParameter {
     pub skip_pixel_data: bool,
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default)]
 enum Mode {
     #[default]
     Browse,

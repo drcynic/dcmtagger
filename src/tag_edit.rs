@@ -3,21 +3,22 @@ use dicom_object::InMemDicomObject;
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
-    style::Stylize,
+    style::{Style, Stylize},
     symbols::border,
     text::Line,
     widgets::{Block, Clear, Padding, Paragraph, Widget},
 };
+use tui_textarea::TextArea;
 
 use crate::dicom;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct TagEdit {
     pub tag: Tag,
     pub name: String,
     pub vr: String,
-    pub current_value: String,
-    element: DataElement<InMemDicomObject>,
+    _element: DataElement<InMemDicomObject>,
+    text_area: TextArea<'static>,
 }
 
 impl TagEdit {
@@ -26,12 +27,15 @@ impl TagEdit {
         let name = dicom::get_tag_name(&element);
         let vr = element.vr().to_string().to_string();
         let current_value = dicom::get_value_string(&element);
+        let mut text_area = TextArea::new(vec![current_value]);
+        text_area.move_cursor(tui_textarea::CursorMove::End);
+        text_area.set_cursor_line_style(Style::default());
         Self {
             tag,
             name,
             vr,
-            current_value,
-            element,
+            _element: element,
+            text_area,
         }
     }
 
@@ -72,6 +76,8 @@ impl TagEdit {
         Paragraph::new(Line::from(vec!["Element: ".bold(), format!("0x{:04X}", self.tag.element()).into()])).render(element_row, buf);
         Paragraph::new(Line::from(vec!["Name:    ".bold(), self.name.as_str().into()])).render(name_row, buf);
         Paragraph::new(Line::from(vec!["VR:      ".bold(), self.vr.as_str().into()])).render(vr_row, buf);
-        Paragraph::new(Line::from(vec!["Value:   ".bold(), self.current_value.as_str().into()])).render(input_row, buf);
+        let [value_label_col, value_input_col] = Layout::horizontal([Constraint::Length(9), Constraint::Min(0)]).areas(input_row);
+        Paragraph::new(Line::from(vec!["Value:   ".bold()])).render(value_label_col, buf);
+        self.text_area.render(value_input_col, buf);
     }
 }
