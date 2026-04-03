@@ -2,15 +2,23 @@ use dicom_core::{DataElement, Tag};
 use dicom_object::InMemDicomObject;
 use ratatui::{
     buffer::Buffer,
+    crossterm::event::{KeyCode, KeyEvent},
     layout::{Constraint, Layout, Rect},
     style::{Style, Stylize},
     symbols::border,
     text::Line,
     widgets::{Block, Clear, Padding, Paragraph, Widget},
 };
-use tui_textarea::TextArea;
+use tui_textarea::{Input, TextArea};
 
 use crate::dicom;
+
+#[derive(Debug, PartialEq)]
+pub enum State {
+    Editing,
+    Canceled,
+    Done,
+}
 
 #[derive(Debug)]
 pub struct TagEdit {
@@ -36,6 +44,17 @@ impl TagEdit {
             vr,
             _element: element,
             text_area,
+        }
+    }
+
+    pub fn handle_key_event(&mut self, key_event: KeyEvent) -> State {
+        match key_event.code {
+            KeyCode::Esc => State::Canceled,
+            KeyCode::Enter => State::Done,
+            _ => {
+                self.text_area.input(Input::from(key_event));
+                State::Editing
+            }
         }
     }
 

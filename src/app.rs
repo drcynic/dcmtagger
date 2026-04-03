@@ -16,7 +16,7 @@ use tui_textarea::{Input, TextArea};
 
 use crate::dicom::DicomData;
 use crate::help::HelpOverlay;
-use crate::tag_edit::TagEdit;
+use crate::tag_edit::{self, TagEdit};
 use crate::tree_widget;
 
 #[derive(Clone, Debug, Parser)]
@@ -39,7 +39,7 @@ enum Mode {
     Browse,
     Help(HelpOverlay),
     Search,
-    Edit(TagEdit),
+    Edit(Box<TagEdit>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -195,13 +195,14 @@ impl<'a> App<'a> {
                     }
                 }
             },
-            Mode::Edit(ref mut _tag_edit) => match key_event.code {
-                KeyCode::Esc | KeyCode::Enter => {
+            Mode::Edit(ref mut tag_edit) => {
+                if tag_edit.handle_key_event(key_event) == tag_edit::State::Done
+                    || tag_edit.handle_key_event(key_event) == tag_edit::State::Canceled
+                {
                     self.handler_text = "back to browsing".to_string();
                     self.mode = Mode::Browse;
                 }
-                _ => {}
-            },
+            }
             Mode::Help(ref mut help_overlay) => match key_event.code {
                 KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => self.hide_help(),
                 KeyCode::Up | KeyCode::Char('k') => help_overlay.scroll_up(),
@@ -217,7 +218,7 @@ impl<'a> App<'a> {
             && let Some(dataset) = self.dicom_data.dicom_obj_for_source(source)
             && let Ok(element) = dataset.element(source.tag)
         {
-            self.mode = Mode::Edit(TagEdit::new(source.tag, element));
+            self.mode = Mode::Edit(Box::new(TagEdit::new(source.tag, element)));
         } else {
             self.handler_text = "i -> no editable tag selected".to_string();
         }
