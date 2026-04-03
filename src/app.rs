@@ -489,7 +489,7 @@ impl<'a> Widget for &mut App<'a> {
         let state_block = Block::bordered()
             .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
             .border_set(bottom_vert_border_set);
-        let handler_text = Text::from(vec![Line::from(vec!["Value: ".into(), self.handler_text.clone().yellow()])]);
+        let handler_text = Text::from(vec![Line::from(vec![self.handler_text.clone().yellow()])]);
         Paragraph::new(handler_text).centered().block(state_block).render(state_area, buf);
 
         let input_block = Block::bordered()
