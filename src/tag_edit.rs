@@ -1,5 +1,4 @@
-use dicom_core::{DataElement, Tag};
-use dicom_object::InMemDicomObject;
+use dicom_core::{DataElement, header::Header};
 use ratatui::{
     buffer::Buffer,
     crossterm::event::{KeyCode, KeyEvent},
@@ -11,46 +10,42 @@ use ratatui::{
 };
 use tui_textarea::{Input, TextArea};
 
-use crate::dicom;
+use crate::dicom::{self, TagElement};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum State {
     Editing,
     Canceled,
-    Done,
+    Updated(TagElement),
 }
 
 #[derive(Debug)]
 pub struct TagEdit {
-    pub tag: Tag,
-    pub name: String,
-    pub vr: String,
-    _element: DataElement<InMemDicomObject>,
+    element: TagElement,
     text_area: TextArea<'static>,
 }
 
 impl TagEdit {
-    pub fn new(tag: Tag, element: &DataElement<InMemDicomObject>) -> Self {
+    pub fn new(element: &TagElement) -> Self {
         let element = element.clone();
-        let name = dicom::get_tag_name(&element);
-        let vr = element.vr().to_string().to_string();
-        let current_value = dicom::get_value_string(&element);
-        let mut text_area = TextArea::new(vec![current_value]);
+        let mut text_area = TextArea::new(vec![dicom::get_value_string(&element)]);
         text_area.move_cursor(tui_textarea::CursorMove::End);
         text_area.set_cursor_line_style(Style::default());
-        Self {
-            tag,
-            name,
-            vr,
-            _element: element,
-            text_area,
-        }
+        Self { element, text_area }
     }
 
+    /// Returns the editing [`State`] after processing the key:
+    /// - [`State::Canceled`] on Esc  – discard changes
+    /// - [`State::Updated`]  on Enter – carries the rebuilt [`TagElement`]
+    /// - [`State::Editing`]  otherwise – key was forwarded to the text area
     pub fn handle_key_event(&mut self, key_event: KeyEvent) -> State {
         match key_event.code {
             KeyCode::Esc => State::Canceled,
-            KeyCode::Enter => State::Done,
+            KeyCode::Enter => {
+                let new_value = self.text_area.lines()[0].clone();
+                let updated = DataElement::new(self.element.header().tag(), self.element.vr(), new_value);
+                State::Updated(updated)
+            }
             _ => {
                 self.text_area.input(Input::from(key_event));
                 State::Editing
@@ -81,7 +76,6 @@ impl TagEdit {
         let inner_area = outer_block.inner(popup_area);
         outer_block.render(popup_area, buf);
 
-        // Split inner area into: tag info rows + spacer + input field
         let [group_row, element_row, name_row, vr_row, input_row] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(1),
@@ -91,10 +85,12 @@ impl TagEdit {
         ])
         .areas(inner_area);
 
-        Paragraph::new(Line::from(vec!["Group:   ".bold(), format!("0x{:04X}", self.tag.group()).into()])).render(group_row, buf);
-        Paragraph::new(Line::from(vec!["Element: ".bold(), format!("0x{:04X}", self.tag.element()).into()])).render(element_row, buf);
-        Paragraph::new(Line::from(vec!["Name:    ".bold(), self.name.as_str().into()])).render(name_row, buf);
-        Paragraph::new(Line::from(vec!["VR:      ".bold(), self.vr.as_str().into()])).render(vr_row, buf);
+        let tag = self.element.header().tag();
+        Paragraph::new(Line::from(vec!["Group:   ".bold(), format!("0x{:04X}", tag.group()).into()])).render(group_row, buf);
+        Paragraph::new(Line::from(vec!["Element: ".bold(), format!("0x{:04X}", tag.element()).into()])).render(element_row, buf);
+        Paragraph::new(Line::from(vec!["Name:    ".bold(), dicom::get_tag_name(&self.element).into()])).render(name_row, buf);
+        Paragraph::new(Line::from(vec!["VR:      ".bold(), self.element.vr().to_string().into()])).render(vr_row, buf);
+
         let [value_label_col, value_input_col] = Layout::horizontal([Constraint::Length(9), Constraint::Min(0)]).areas(input_row);
         Paragraph::new(Line::from(vec!["Value:   ".bold()])).render(value_label_col, buf);
         self.text_area.render(value_input_col, buf);

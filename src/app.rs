@@ -195,14 +195,16 @@ impl<'a> App<'a> {
                     }
                 }
             },
-            Mode::Edit(ref mut tag_edit) => {
-                if tag_edit.handle_key_event(key_event) == tag_edit::State::Done
-                    || tag_edit.handle_key_event(key_event) == tag_edit::State::Canceled
-                {
-                    self.handler_text = "back to browsing".to_string();
+            Mode::Edit(ref mut tag_edit) => match tag_edit.handle_key_event(key_event) {
+                tag_edit::State::Updated(element) => {
+                    self.handler_text = format!("Update {}: {}", element.header().tag, element.to_str().unwrap());
                     self.mode = Mode::Browse;
                 }
-            }
+                tag_edit::State::Canceled => {
+                    self.mode = Mode::Browse;
+                }
+                tag_edit::State::Editing => {}
+            },
             Mode::Help(ref mut help_overlay) => match key_event.code {
                 KeyCode::Char('?') | KeyCode::Char('q') | KeyCode::Esc => self.hide_help(),
                 KeyCode::Up | KeyCode::Char('k') => help_overlay.scroll_up(),
@@ -218,7 +220,7 @@ impl<'a> App<'a> {
             && let Some(dataset) = self.dicom_data.dicom_obj_for_source(source)
             && let Ok(element) = dataset.element(source.tag)
         {
-            self.mode = Mode::Edit(Box::new(TagEdit::new(source.tag, element)));
+            self.mode = Mode::Edit(Box::new(TagEdit::new(element)));
         } else {
             self.handler_text = "i -> no editable tag selected".to_string();
         }

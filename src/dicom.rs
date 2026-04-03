@@ -230,17 +230,17 @@ fn read_seq(
     }
 }
 
-pub fn get_tag_name(elem: &crate::dicom::TagElement) -> String {
+pub fn get_tag_name(elem: &TagElement) -> &str {
     use dicom_core::DataDictionary;
     let dict = dicom_dictionary_std::StandardDataDictionary;
     if let Some(tag_info) = dict.by_tag(elem.header().tag) {
-        tag_info.alias.to_string()
+        tag_info.alias
     } else {
-        "<unknown>".to_string()
+        "<unknown>"
     }
 }
 
-pub fn get_value_string(elem: &crate::dicom::TagElement) -> String {
+pub fn get_value_string(elem: &TagElement) -> String {
     match elem.value() {
         dicom_core::DicomValue::Primitive(primitive_value) => match elem.vr() {
             dicom_core::VR::OB | dicom_core::VR::OW => {
