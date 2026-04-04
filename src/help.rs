@@ -89,6 +89,8 @@ const fn raw_help_text() -> &'static str {
   i                    - Enter edit mode for selected tag
   /                    - Enter search mode
   ?                    - Show help
+  w                    - Save modified files
+  i                    - Enter edit mode for selected tag
 
   Enter/Space          - Toggle expand/collapse
   j/↓/ctrl+n           - Move down visible tree structure over all hierarchy levels
