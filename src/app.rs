@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::fmt::Debug;
+use std::path::PathBuf;
 use std::{io, path::Path};
 
 use clap::Parser;
@@ -122,6 +123,7 @@ impl<'a> App<'a> {
                 KeyCode::Char('2') => self.sort_by_tag(0),
                 KeyCode::Char('3') => self.sort_by_tag(1),
                 KeyCode::Char('q') | KeyCode::Esc => self.exit(),
+                KeyCode::Char('w') => self.save_modified_files(),
                 KeyCode::Char('?') => self.show_help(),
                 KeyCode::Char('/') => {
                     self.mode = Mode::Search;
@@ -238,6 +240,19 @@ impl<'a> App<'a> {
 
     fn exit(&mut self) {
         self.exit = true;
+    }
+
+    fn save_modified_files(&mut self) {
+        for filename in &self.modified_files {
+            if let Some(dataset) = self.dicom_data.dicom_obj_for_filename(filename) {
+                if let Err(e) = dataset.write_to_file(PathBuf::from(filename)) {
+                    self.handler_text = format!("Failed to save {}: {}", filename, e);
+                } else {
+                    self.handler_text = format!("Saved {}", filename);
+                }
+            }
+        }
+        self.modified_files.clear();
     }
 
     fn show_help(&mut self) {
