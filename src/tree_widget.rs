@@ -16,7 +16,6 @@ pub struct TreeNode {
     pub text: String,
     pub children: Vec<Id>,
     pub parent_id: Option<Id>,
-    #[allow(dead_code)]
     pub source: Option<TagSource>,
 }
 

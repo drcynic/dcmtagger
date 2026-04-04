@@ -14,7 +14,7 @@ use ratatui::{
 };
 use tui_textarea::{Input, TextArea};
 
-use crate::dicom::DicomData;
+use crate::dicom::{self, DicomData};
 use crate::help::HelpOverlay;
 use crate::tag_edit::{self, TagEdit};
 use crate::tree_widget;
@@ -197,7 +197,14 @@ impl<'a> App<'a> {
             },
             Mode::Edit(ref mut tag_edit) => match tag_edit.handle_key_event(key_event) {
                 tag_edit::State::Updated(element) => {
-                    self.handler_text = format!("Update {}: {}", element.header().tag, element.to_str().unwrap());
+                    if let Some(node) = self.tree_widget.nodes.get_mut(self.tree_widget.selected_id)
+                        && let Some(source) = &node.source
+                        && let Some(dataset) = self.dicom_data.dicom_obj_for_source_mut(source)
+                    {
+                        self.handler_text = format!("Update {}: {}", element.header().tag, element.to_str().unwrap());
+                        node.text = dicom::element_text(&element, element.header().tag);
+                        dataset.put_element(element);
+                    }
                     self.mode = Mode::Browse;
                 }
                 tag_edit::State::Canceled => {

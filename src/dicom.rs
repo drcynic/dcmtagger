@@ -60,6 +60,10 @@ impl DicomData {
         self.datasets_by_filename.get(&source.filename)
     }
 
+    pub fn dicom_obj_for_source_mut(&mut self, source: &TagSource) -> Option<&mut FileDicomObject<InMemDicomObject>> {
+        self.datasets_by_filename.get_mut(&source.filename)
+    }
+
     pub fn tree_sorted_by_filename(&self) -> tree_widget::TreeWidget {
         let mut tree_widget = tree_widget::TreeWidget::new(self.root_path.display().to_string());
 
@@ -191,15 +195,19 @@ fn read_data_into_tree(
     }
 }
 
-fn text_and_source(filename: &str, elem: &dicom_core::DataElement<InMemDicomObject>, tag: Tag) -> (String, Option<TagSource>) {
-    let element_text = format!(
+pub fn element_text(elem: &dicom_core::DataElement<InMemDicomObject>, tag: Tag) -> String {
+    format!(
         "{:04x} {} ({}, {}): {}",
         tag.element(),
         get_tag_name(elem),
         elem.vr(),
         elem.header().len,
         get_value_string(elem)
-    );
+    )
+}
+
+fn text_and_source(filename: &str, elem: &dicom_core::DataElement<InMemDicomObject>, tag: Tag) -> (String, Option<TagSource>) {
+    let element_text = element_text(elem, tag);
     let source = Some(TagSource {
         tag,
         filename: filename.to_string(),
