@@ -467,7 +467,8 @@ impl<'a> App<'a> {
 
 impl<'a> Widget for &mut App<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_path.clone().into(), " ".into()]);
+        let modified = format!("{} ", if self.modified_files.is_empty() { "" } else { " (*)" });
+        let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_path.clone().into(), modified.into()]);
 
         let [list_area, state_area, input_area] = self.layouted_areas(area);
 
