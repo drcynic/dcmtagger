@@ -87,10 +87,9 @@ const fn raw_help_text() -> &'static str {
   2                    - Sort tree by tags
   3                    - Sort tree by tags, only showing tags with different values
   i                    - Enter edit mode for selected tag
+  w                    - Save modified files
   /                    - Enter search mode
   ?                    - Show help
-  w                    - Save modified files
-  i                    - Enter edit mode for selected tag
 
   Enter/Space          - Toggle expand/collapse
   j/↓/ctrl+n           - Move down visible tree structure over all hierarchy levels
@@ -115,7 +114,12 @@ const fn raw_help_text() -> &'static str {
   ctrl+f/page-down     - Move page down
   ctrl+b/page-up       - Move page up
 
+Search:
   n                    - Search for next occurence if search text present
   N                    - Search for prev occurence if search text present
+
+Edit:
+  Esc                 - Leave and discard changes
+  Enter               - Leave and apply changes
 "#
 }

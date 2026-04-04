@@ -10,6 +10,7 @@
   2                    - Sort tree by tags
   3                    - Sort tree by tags, only showing tags with different values
   i                    - Enter edit mode for selected tag
+  w                    - Save modified files
   /                    - Enter search mode
   ?                    - Show help
 ```
@@ -49,4 +50,11 @@
 ```
   Esc                  - Leave and clear search text
   Enter                - Leave and keep search text
+```
+
+### Edit
+
+```
+  Esc                 - Leave and discard changes
+  Enter               - Leave and apply changes
 ```
