@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fmt::Debug;
 use std::{io, path::Path};
 
@@ -61,6 +62,7 @@ pub struct App<'a> {
     handler_text: String,
     exit: bool,
     show_debug_info: bool,
+    modified_files: BTreeSet<String>,
 }
 
 impl<'a> App<'a> {
@@ -204,6 +206,7 @@ impl<'a> App<'a> {
                         self.handler_text = format!("Update {}: {}", element.header().tag, element.to_str().unwrap());
                         node.text = dicom::element_text(&element, element.header().tag);
                         dataset.put_element(element);
+                        self.modified_files.insert(source.filename.clone());
                     }
                     self.mode = Mode::Browse;
                 }
