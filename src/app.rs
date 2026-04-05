@@ -1,6 +1,5 @@
 use std::collections::BTreeSet;
 use std::fmt::Debug;
-use std::path::PathBuf;
 use std::{io, path::Path};
 
 use clap::Parser;
@@ -255,8 +254,8 @@ impl<'a> App<'a> {
 
     fn save_modified_files(&mut self) {
         for filename in &self.modified_files {
-            if let Some(dataset) = self.dicom_data.dicom_obj_for_filename(filename) {
-                if let Err(e) = dataset.write_to_file(PathBuf::from(filename)) {
+            if let (Some(dataset), path) = self.dicom_data.dicom_obj_and_path_for_filename(filename) {
+                if let Err(e) = dataset.write_to_file(path) {
                     self.handler_text = format!("Failed to save {}: {}", filename, e);
                 } else {
                     self.handler_text = format!("Saved {}", filename);

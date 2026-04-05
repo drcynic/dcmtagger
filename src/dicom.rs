@@ -56,12 +56,16 @@ impl DicomData {
         })
     }
 
-    pub fn dicom_obj_for_filename(&self, filename: &str) -> Option<&FileDicomObject<InMemDicomObject>> {
-        self.datasets_by_filename.get(filename)
+    pub fn dicom_obj_and_path_for_filename(&self, filename: &str) -> (Option<&FileDicomObject<InMemDicomObject>>, PathBuf) {
+        let mut path = self.root_path.clone();
+        if path.is_dir() {
+            path.push(filename);
+        }
+        (self.datasets_by_filename.get(filename), path)
     }
 
     pub fn dicom_obj_for_source(&self, source: &TagSource) -> Option<&FileDicomObject<InMemDicomObject>> {
-        self.dicom_obj_for_filename(&source.filename)
+        self.datasets_by_filename.get(&source.filename)
     }
 
     pub fn dicom_obj_for_source_mut(&mut self, source: &TagSource) -> Option<&mut FileDicomObject<InMemDicomObject>> {
