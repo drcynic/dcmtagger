@@ -5,7 +5,8 @@
 ### Global
 
 ```
-  q/Esc                - Quit
+  q/Esc                - Quit when no modified files exist
+  Q                    - Quit discarding modified files
   1                    - Sort tree by filename
   2                    - Sort tree by tags
   3                    - Sort tree by tags, only showing tags with different values

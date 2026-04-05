@@ -122,7 +122,8 @@ impl<'a> App<'a> {
                 KeyCode::Char('1') => self.sort_by_filename(),
                 KeyCode::Char('2') => self.sort_by_tag(0),
                 KeyCode::Char('3') => self.sort_by_tag(1),
-                KeyCode::Char('q') | KeyCode::Esc => self.exit(),
+                KeyCode::Char('q') | KeyCode::Esc => self.exit(false),
+                KeyCode::Char('Q') => self.exit(true),
                 KeyCode::Char('w') => self.save_modified_files(),
                 KeyCode::Char('?') => self.show_help(),
                 KeyCode::Char('/') => {
@@ -238,7 +239,11 @@ impl<'a> App<'a> {
         }
     }
 
-    fn exit(&mut self) {
+    fn exit(&mut self, force_exit_when_modified: bool) {
+        if !force_exit_when_modified && !self.modified_files.is_empty() {
+            self.handler_text = "Modified files exist. Save before exiting with 'w' or enforce with 'Q'".to_string();
+            return;
+        }
         self.exit = true;
     }
 
