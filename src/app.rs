@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::{io, path::Path};
 
 use clap::Parser;
+use dicom_core::VR;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
     DefaultTerminal, Frame,
@@ -232,11 +233,16 @@ impl<'a> App<'a> {
             && let Some(source) = &node.source
             && let Some(dataset) = self.dicom_data.dicom_obj_for_source(source)
             && let Ok(element) = dataset.element(source.tag)
+            && self.is_editable_vr(element.header().vr)
         {
             self.mode = Mode::Edit(Box::new(TagEdit::new(element)));
         } else {
             self.handler_text = "i -> no editable tag selected".to_string();
         }
+    }
+
+    fn is_editable_vr(&self, vr: VR) -> bool {
+        vr != VR::OB && vr != VR::OW && vr != VR::UN
     }
 
     fn exit(&mut self, force_exit_when_modified: bool) {
