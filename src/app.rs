@@ -45,6 +45,14 @@ enum Mode {
     Edit(Box<TagEdit>),
 }
 
+#[derive(Debug, Default, PartialEq)]
+enum SortOrder {
+    #[default]
+    Filename,
+    Tag,
+    TagWithDiffs,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum SearchDirection {
     Forward,
@@ -58,6 +66,7 @@ pub struct App<'a> {
     tree_widget: tree_widget::TreeWidget,
     text_area: TextArea<'a>,
     mode: Mode,
+    sort_order: SortOrder,
     page_size: usize,
     input_text: Option<String>,
     search_start_node_id: tree_widget::Id,
@@ -239,6 +248,10 @@ impl<'a> App<'a> {
     }
 
     fn switch_to_edit_mode(&mut self) {
+        if self.sort_order != SortOrder::Filename {
+            self.handler_text = "editing currently only possible in filename sort order '1'".to_string();
+            return;
+        }
         if let Some(node) = self.tree_widget.nodes.get(self.tree_widget.selected_id)
             && let Some(source) = &node.source
             && let Some(dataset) = self.dicom_data.dicom_obj_for_source(source)
@@ -353,6 +366,7 @@ impl<'a> App<'a> {
     }
 
     fn sort_by_filename(&mut self) {
+        self.sort_order = SortOrder::Filename;
         self.tree_widget = self.dicom_data.tree_sorted_by_filename();
         self.tree_widget.open(self.tree_widget.root_id);
         self.handler_text = "sorted by filename".to_string();
@@ -368,8 +382,10 @@ impl<'a> App<'a> {
         }
 
         if min_diff == 0 {
+            self.sort_order = SortOrder::Tag;
             self.handler_text = "sorted by tag".to_string();
         } else {
+            self.sort_order = SortOrder::TagWithDiffs;
             self.handler_text = "sorted by tag, displaying only different tags".to_string();
         }
     }
