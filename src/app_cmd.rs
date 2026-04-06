@@ -9,6 +9,31 @@ pub trait AppCmd {
     fn undo(&self, app: &mut crate::app::App);
 }
 
+#[allow(dead_code)]
+pub struct MacroCmd<Cmd: AppCmd> {
+    cmds: Vec<Cmd>,
+}
+
+impl<Cmd: AppCmd> MacroCmd<Cmd> {
+    pub fn _new(cmds: Vec<Cmd>) -> Self {
+        Self { cmds }
+    }
+}
+
+impl<Cmd: AppCmd> AppCmd for MacroCmd<Cmd> {
+    fn execute(&self, app: &mut crate::app::App) {
+        for cmd in &self.cmds {
+            cmd.execute(app);
+        }
+    }
+
+    fn undo(&self, app: &mut crate::app::App) {
+        for cmd in self.cmds.iter().rev() {
+            cmd.undo(app);
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TagEditCmd {
     pub node_id: DefaultKey,
