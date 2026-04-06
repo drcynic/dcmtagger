@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::fmt::Debug;
+use std::sync::{LazyLock, Mutex};
 use std::{io, path::Path};
 
 use clap::Parser;
@@ -16,14 +17,14 @@ use ratatui::{
 };
 use tui_textarea::{Input, TextArea};
 
+use crate::app_cmd::TagEditCmd;
 use crate::dicom::{self, DicomData};
 use crate::help::HelpOverlay;
-use crate::history::{EditHistory, TagEditCmd};
+use crate::history::EditHistory;
 use crate::tag_edit::{self, TagEdit};
 use crate::tree_widget;
 
-static HISTORY: std::sync::LazyLock<std::sync::Mutex<EditHistory>> =
-    std::sync::LazyLock::new(|| std::sync::Mutex::new(EditHistory::default()));
+static HISTORY: LazyLock<Mutex<EditHistory>> = LazyLock::new(|| Mutex::new(EditHistory::default()));
 
 #[derive(Clone, Debug, Parser)]
 #[clap(name = "DICOM Tagger", version = format!("v{}", env!("CARGO_PKG_VERSION")))]
@@ -280,7 +281,7 @@ impl<'a> App<'a> {
 
     fn redo(&mut self) {
         if let Some(change) = HISTORY.lock().unwrap().redo() {
-            change.apply(self);
+            change.execute(self);
         } else {
             self.handler_text = "Nothing to redo".to_string();
         }
