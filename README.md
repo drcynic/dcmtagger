@@ -12,6 +12,8 @@
   3                    - Sort tree by tags, only showing tags with different values
   i                    - Enter edit mode for selected tag
   w                    - Save modified files
+  u                    - Undo last edit
+  r                    - Redo last edit
   /                    - Enter search mode
   ?                    - Show help
 ```

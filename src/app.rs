@@ -16,8 +16,9 @@ use ratatui::{
 };
 use tui_textarea::{Input, TextArea};
 
-use crate::dicom::{self, DicomData};
+use crate::dicom::{self, DicomData, TagSource};
 use crate::help::HelpOverlay;
+use crate::history::{EditChange, EditHistory};
 use crate::tag_edit::{self, TagEdit};
 use crate::tree_widget;
 
@@ -64,6 +65,7 @@ pub struct App<'a> {
     exit: bool,
     show_debug_info: bool,
     modified_files: BTreeSet<String>,
+    history: EditHistory,
 }
 
 impl<'a> App<'a> {
@@ -171,6 +173,8 @@ impl<'a> App<'a> {
                     let start_node_id = self.tree_widget.selected_id;
                     self.try_search(SearchDirection::Forward, start_node_id);
                 }
+                KeyCode::Char('u') => self.undo(),
+                KeyCode::Char('r') => self.redo(),
                 _ => {}
             },
             Mode::Search => match key_event.code {
@@ -201,15 +205,22 @@ impl<'a> App<'a> {
                 }
             },
             Mode::Edit(ref mut tag_edit) => match tag_edit.handle_key_event(key_event) {
-                tag_edit::State::Updated(element) => {
-                    if let Some(node) = self.tree_widget.nodes.get_mut(self.tree_widget.selected_id)
+                tag_edit::State::Updated(new_element) => {
+                    let node_id = self.tree_widget.selected_id;
+                    if let Some(node) = self.tree_widget.nodes.get_mut(node_id)
                         && let Some(source) = &node.source
                         && let Some(dataset) = self.dicom_data.dicom_obj_for_source_mut(source)
+                        && let Some(old_element) = dataset.element(source.tag).ok().cloned()
                     {
-                        self.handler_text = format!("Update {}: {}", element.header().tag, element.to_str().unwrap());
-                        node.text = dicom::element_text(&element, element.header().tag);
-                        dataset.put_element(element);
+                        let tag = new_element.header().tag;
+                        self.handler_text = format!("Update {}: {}", tag, new_element.to_str().unwrap_or_default());
+                        node.text = dicom::element_text(&new_element, tag);
+                        dataset.put_element(new_element.clone());
                         self.modified_files.insert(source.filename.clone());
+
+                        // Record undo/redo history.
+                        let change = EditChange::new(node_id, source.filename.clone(), old_element, new_element);
+                        self.history.push(change);
                     }
                     self.mode = Mode::Browse;
                 }
@@ -242,6 +253,63 @@ impl<'a> App<'a> {
 
     fn is_editable_vr(&self, vr: VR) -> bool {
         vr != VR::OB && vr != VR::OW && vr != VR::UN
+    }
+
+    fn undo(&mut self) {
+        if let Some(change) = self.history.undo() {
+            let node_id = change.node_id;
+            let old_element = change.old_element.clone();
+            let old_text = dicom::element_text(&old_element, old_element.header().tag);
+            let tag = old_element.header().tag;
+            let source = TagSource {
+                tag,
+                filename: change.filename.clone(),
+            };
+            if let Some(dataset) = self.dicom_data.dicom_obj_for_source_mut(&source) {
+                dataset.put_element(old_element);
+            }
+            if let Some(node) = self.tree_widget.nodes.get_mut(node_id) {
+                node.text = old_text;
+            }
+            self.modified_files.insert(change.filename.clone());
+            self.handler_text = format!(
+                "Undo: reverted {} (undo:{} redo:{})",
+                source.tag,
+                self.history.undo_depth(),
+                self.history.redo_depth()
+            );
+        } else {
+            self.handler_text = "Nothing to undo".to_string();
+        }
+    }
+
+    fn redo(&mut self) {
+        if let Some(change) = self.history.redo() {
+            let node_id = change.node_id;
+            let new_element = change.new_element.clone();
+            let new_text = dicom::element_text(&new_element, new_element.header().tag);
+            let tag = new_element.header().tag;
+            let source = TagSource {
+                tag,
+                filename: change.filename.clone(),
+            };
+
+            if let Some(dataset) = self.dicom_data.dicom_obj_for_source_mut(&source) {
+                dataset.put_element(new_element);
+            }
+            if let Some(node) = self.tree_widget.nodes.get_mut(node_id) {
+                node.text = new_text;
+            }
+            self.modified_files.insert(change.filename.clone());
+            self.handler_text = format!(
+                "Redo: re-applied {} (undo:{} redo:{})",
+                source.tag,
+                self.history.undo_depth(),
+                self.history.redo_depth()
+            );
+        } else {
+            self.handler_text = "Nothing to redo".to_string();
+        }
     }
 
     fn exit(&mut self, force_exit_when_modified: bool) {
