@@ -18,7 +18,7 @@ use ratatui::{
 use tui_textarea::{Input, TextArea};
 
 use crate::app_cmd::{AppCmd, TagEditCmd};
-use crate::dicom::{self, DicomData};
+use crate::dicom::DicomData;
 use crate::help::HelpOverlay;
 
 use crate::tag_edit::{self, TagEdit};
@@ -185,8 +185,8 @@ impl<'a> App<'a> {
                     let start_node_id = self.tree_widget.selected_id;
                     self.try_search(SearchDirection::Forward, start_node_id);
                 }
-                KeyCode::Char('u') => self.undo(),
-                KeyCode::Char('r') => self.redo(),
+                KeyCode::Char('u') => self.undo_cmd(),
+                KeyCode::Char('r') => self.redo_cmd(),
                 _ => {}
             },
             Mode::Search => match key_event.code {
@@ -224,16 +224,8 @@ impl<'a> App<'a> {
                         && let Some(dataset) = self.dicom_data.dicom_obj_for_source_mut(source)
                         && let Some(old_element) = dataset.element(source.tag).ok().cloned()
                     {
-                        let tag = new_element.header().tag;
-                        self.handler_text = format!("Update {}: {}", tag, new_element.to_str().unwrap_or_default());
-                        node.text = dicom::element_text(&new_element, tag);
-                        dataset.put_element(new_element.clone());
-                        self.modified_files.insert(source.filename.clone());
-
-                        // Record undo/redo history.
-                        let change = Box::new(TagEditCmd::new(node_id, source.filename.clone(), old_element, new_element));
-                        self.redo_stack.clear();
-                        self.undo_stack.push(change);
+                        let filename = source.filename.clone();
+                        self.execute_cmd(Box::new(TagEditCmd::new(node_id, filename, old_element, new_element)));
                     }
                     self.mode = Mode::Browse;
                 }
@@ -272,7 +264,13 @@ impl<'a> App<'a> {
         vr != VR::OB && vr != VR::OW && vr != VR::UN
     }
 
-    fn undo(&mut self) {
+    fn execute_cmd(&mut self, cmd: Box<dyn AppCmd + Send + Sync>) {
+        cmd.execute(self);
+        self.undo_stack.push(cmd);
+        self.redo_stack.clear();
+    }
+
+    fn undo_cmd(&mut self) {
         if let Some(change) = self.undo_stack.pop() {
             change.undo(self);
             self.redo_stack.push(change);
@@ -281,7 +279,7 @@ impl<'a> App<'a> {
         }
     }
 
-    fn redo(&mut self) {
+    fn redo_cmd(&mut self) {
         if let Some(change) = self.redo_stack.pop() {
             change.execute(self);
             self.undo_stack.push(change);

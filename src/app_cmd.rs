@@ -78,6 +78,6 @@ impl AppCmd for TagEditCmd {
     }
 
     fn execute(&self, app: &mut crate::app::App) {
-        self.apply(app, self.new_element.clone(), "Redo: re-applied");
+        self.apply(app, self.new_element.clone(), "Update: applied");
     }
 }
