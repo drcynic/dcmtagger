@@ -2,7 +2,6 @@ mod app;
 mod app_cmd;
 mod dicom;
 mod help;
-mod history;
 mod tag_edit;
 mod tree_widget;
 

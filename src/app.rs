@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 use std::fmt::Debug;
-use std::sync::{LazyLock, Mutex};
+
 use std::{io, path::Path};
 
 use clap::Parser;
@@ -17,14 +17,12 @@ use ratatui::{
 };
 use tui_textarea::{Input, TextArea};
 
-use crate::app_cmd::TagEditCmd;
+use crate::app_cmd::{AppCmd, TagEditCmd};
 use crate::dicom::{self, DicomData};
 use crate::help::HelpOverlay;
-use crate::history::EditHistory;
+
 use crate::tag_edit::{self, TagEdit};
 use crate::tree_widget;
-
-static HISTORY: LazyLock<Mutex<EditHistory>> = LazyLock::new(|| Mutex::new(EditHistory::default()));
 
 #[derive(Clone, Debug, Parser)]
 #[clap(name = "DICOM Tagger", version = format!("v{}", env!("CARGO_PKG_VERSION")))]
@@ -78,6 +76,8 @@ pub struct App<'a> {
     exit: bool,
     show_debug_info: bool,
     pub modified_files: BTreeSet<String>,
+    undo_stack: Vec<Box<dyn AppCmd + Send + Sync>>,
+    redo_stack: Vec<Box<dyn AppCmd + Send + Sync>>,
 }
 
 impl<'a> App<'a> {
@@ -232,7 +232,8 @@ impl<'a> App<'a> {
 
                         // Record undo/redo history.
                         let change = Box::new(TagEditCmd::new(node_id, source.filename.clone(), old_element, new_element));
-                        HISTORY.lock().unwrap().push(change);
+                        self.redo_stack.clear();
+                        self.undo_stack.push(change);
                     }
                     self.mode = Mode::Browse;
                 }
@@ -272,16 +273,18 @@ impl<'a> App<'a> {
     }
 
     fn undo(&mut self) {
-        if let Some(change) = HISTORY.lock().unwrap().undo() {
+        if let Some(change) = self.undo_stack.pop() {
             change.undo(self);
+            self.redo_stack.push(change);
         } else {
             self.handler_text = "Nothing to undo".to_string();
         }
     }
 
     fn redo(&mut self) {
-        if let Some(change) = HISTORY.lock().unwrap().redo() {
+        if let Some(change) = self.redo_stack.pop() {
             change.execute(self);
+            self.undo_stack.push(change);
         } else {
             self.handler_text = "Nothing to redo".to_string();
         }

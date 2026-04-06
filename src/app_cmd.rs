@@ -4,12 +4,13 @@ use slotmap::DefaultKey;
 
 use crate::dicom::TagElement;
 
-pub trait AppCmd {
+pub trait AppCmd: std::fmt::Debug {
     fn execute(&self, app: &mut crate::app::App);
     fn undo(&self, app: &mut crate::app::App);
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct MacroCmd<Cmd: AppCmd> {
     cmds: Vec<Cmd>,
 }
