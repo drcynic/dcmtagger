@@ -16,11 +16,14 @@ use ratatui::{
 };
 use tui_textarea::{Input, TextArea};
 
-use crate::dicom::{self, DicomData, TagSource};
+use crate::dicom::{self, DicomData};
 use crate::help::HelpOverlay;
-use crate::history::{EditChange, EditHistory};
+use crate::history::{EditHistory, TagEditCmd};
 use crate::tag_edit::{self, TagEdit};
 use crate::tree_widget;
+
+static HISTORY: std::sync::LazyLock<std::sync::Mutex<EditHistory>> =
+    std::sync::LazyLock::new(|| std::sync::Mutex::new(EditHistory::default()));
 
 #[derive(Clone, Debug, Parser)]
 #[clap(name = "DICOM Tagger", version = format!("v{}", env!("CARGO_PKG_VERSION")))]
@@ -62,19 +65,18 @@ enum SearchDirection {
 #[derive(Debug, Default)]
 pub struct App<'a> {
     input_path: String,
-    dicom_data: DicomData,
-    tree_widget: tree_widget::TreeWidget,
+    pub dicom_data: DicomData,
+    pub tree_widget: tree_widget::TreeWidget,
     text_area: TextArea<'a>,
     mode: Mode,
     sort_order: SortOrder,
     page_size: usize,
     input_text: Option<String>,
     search_start_node_id: tree_widget::Id,
-    handler_text: String,
+    pub handler_text: String,
     exit: bool,
     show_debug_info: bool,
-    modified_files: BTreeSet<String>,
-    history: EditHistory,
+    pub modified_files: BTreeSet<String>,
 }
 
 impl<'a> App<'a> {
@@ -228,8 +230,8 @@ impl<'a> App<'a> {
                         self.modified_files.insert(source.filename.clone());
 
                         // Record undo/redo history.
-                        let change = EditChange::new(node_id, source.filename.clone(), old_element, new_element);
-                        self.history.push(change);
+                        let change = Box::new(TagEditCmd::new(node_id, source.filename.clone(), old_element, new_element));
+                        HISTORY.lock().unwrap().push(change);
                     }
                     self.mode = Mode::Browse;
                 }
@@ -269,57 +271,16 @@ impl<'a> App<'a> {
     }
 
     fn undo(&mut self) {
-        if let Some(change) = self.history.undo() {
-            let node_id = change.node_id;
-            let old_element = change.old_element.clone();
-            let old_text = dicom::element_text(&old_element, old_element.header().tag);
-            let tag = old_element.header().tag;
-            let source = TagSource {
-                tag,
-                filename: change.filename.clone(),
-            };
-            if let Some(dataset) = self.dicom_data.dicom_obj_for_source_mut(&source) {
-                dataset.put_element(old_element);
-            }
-            if let Some(node) = self.tree_widget.nodes.get_mut(node_id) {
-                node.text = old_text;
-            }
-            self.modified_files.insert(change.filename.clone());
-            self.handler_text = format!(
-                "Undo: reverted {} (undo:{} redo:{})",
-                source.tag,
-                self.history.undo_depth(),
-                self.history.redo_depth()
-            );
+        if let Some(change) = HISTORY.lock().unwrap().undo() {
+            change.undo(self);
         } else {
             self.handler_text = "Nothing to undo".to_string();
         }
     }
 
     fn redo(&mut self) {
-        if let Some(change) = self.history.redo() {
-            let node_id = change.node_id;
-            let new_element = change.new_element.clone();
-            let new_text = dicom::element_text(&new_element, new_element.header().tag);
-            let tag = new_element.header().tag;
-            let source = TagSource {
-                tag,
-                filename: change.filename.clone(),
-            };
-
-            if let Some(dataset) = self.dicom_data.dicom_obj_for_source_mut(&source) {
-                dataset.put_element(new_element);
-            }
-            if let Some(node) = self.tree_widget.nodes.get_mut(node_id) {
-                node.text = new_text;
-            }
-            self.modified_files.insert(change.filename.clone());
-            self.handler_text = format!(
-                "Redo: re-applied {} (undo:{} redo:{})",
-                source.tag,
-                self.history.undo_depth(),
-                self.history.redo_depth()
-            );
+        if let Some(change) = HISTORY.lock().unwrap().redo() {
+            change.apply(self);
         } else {
             self.handler_text = "Nothing to redo".to_string();
         }
