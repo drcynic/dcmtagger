@@ -261,7 +261,7 @@ impl<'a> App<'a> {
     }
 
     fn is_editable_vr(&self, vr: VR) -> bool {
-        vr != VR::OB && vr != VR::OW && vr != VR::UN
+        !tag_edit::is_binary_vr(vr) && vr != VR::SQ
     }
 
     fn execute_cmd(&mut self, cmd: Box<dyn AppCmd + Send + Sync>) {
