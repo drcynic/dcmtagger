@@ -75,6 +75,7 @@ pub struct App<'a> {
     pub handler_text: String,
     exit: bool,
     show_debug_info: bool,
+    show_images: bool,
     pub modified_files: BTreeSet<String>,
     undo_stack: Vec<Box<dyn AppCmd + Send + Sync>>,
     redo_stack: Vec<Box<dyn AppCmd + Send + Sync>>,
@@ -187,6 +188,7 @@ impl<'a> App<'a> {
                 }
                 KeyCode::Char('u') => self.undo_cmd(),
                 KeyCode::Char('r') => self.redo_cmd(),
+                KeyCode::Char('I') => self.toggle_images(),
                 _ => {}
             },
             Mode::Search => match key_event.code {
@@ -286,6 +288,11 @@ impl<'a> App<'a> {
         } else {
             self.handler_text = "Nothing to redo".to_string();
         }
+    }
+
+    fn toggle_images(&mut self) {
+        self.show_images = !self.show_images;
+        self.handler_text = format!("Images toggled to: {}", self.show_images);
     }
 
     fn exit(&mut self, force_exit_when_modified: bool) {
@@ -542,7 +549,11 @@ impl<'a> Widget for &mut App<'a> {
         let modified = format!("{} ", if self.modified_files.is_empty() { "" } else { " (*)" });
         let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_path.clone().into(), modified.into()]);
 
-        let [list_area, state_area, input_area] = self.layouted_areas(area);
+        let [main_area, state_area, input_area] = self.layouted_areas(area);
+        let [mut list_area, image_area] = Layout::horizontal([Constraint::Fill(1), Constraint::Fill(1)]).areas(main_area);
+        if !self.show_images {
+            list_area = main_area;
+        }
 
         let bottom_vert_border_set = symbols::border::Set {
             bottom_left: symbols::line::NORMAL.vertical_right,
@@ -552,7 +563,16 @@ impl<'a> Widget for &mut App<'a> {
 
         let tree_block = Block::bordered()
             .title(title.centered())
-            .border_set(bottom_vert_border_set)
+            .border_set(if self.show_images {
+                symbols::border::Set {
+                    top_right: symbols::line::NORMAL.horizontal_down,
+                    bottom_left: symbols::line::NORMAL.vertical_right,
+                    bottom_right: symbols::line::NORMAL.horizontal_up,
+                    ..symbols::border::PLAIN
+                }
+            } else {
+                bottom_vert_border_set
+            })
             .padding(Padding::horizontal(0));
 
         // !todo: check if this is fast enough for very large tree with > 150k nodes all opened
@@ -570,6 +590,19 @@ impl<'a> Widget for &mut App<'a> {
             .block(tree_block)
             .selection_style(Style::default().bg(Color::DarkGray));
         StatefulWidget::render(tree_renderer, list_area, buf, &mut self.tree_widget);
+
+        if self.show_images {
+            let image_block = Block::bordered()
+                .borders(Borders::RIGHT | Borders::TOP | Borders::BOTTOM)
+                .border_set(symbols::border::Set {
+                    top_left: symbols::line::NORMAL.horizontal_down,
+                    bottom_left: symbols::line::NORMAL.horizontal_up,
+                    bottom_right: symbols::line::NORMAL.vertical_left,
+                    ..symbols::border::PLAIN
+                });
+            let handler_text = Text::from(vec![Line::from(vec![self.handler_text.clone().yellow()])]);
+            Paragraph::new(handler_text).centered().block(image_block).render(image_area, buf);
+        }
 
         let state_block = Block::bordered()
             .borders(Borders::LEFT | Borders::RIGHT | Borders::BOTTOM)
