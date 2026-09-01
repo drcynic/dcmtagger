@@ -2,6 +2,7 @@ mod app;
 mod app_cmd;
 mod dicom;
 mod help;
+mod kitty_image;
 mod tag_edit;
 mod tree_widget;
 

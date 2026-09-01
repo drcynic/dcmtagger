@@ -21,6 +21,7 @@ use crate::app_cmd::{AppCmd, TagEditCmd};
 use crate::dicom::DicomData;
 use crate::help::HelpOverlay;
 
+use crate::kitty_image::KittyImage;
 use crate::tag_edit::{self, TagEdit};
 use crate::tree_widget;
 
@@ -76,6 +77,7 @@ pub struct App<'a> {
     exit: bool,
     show_debug_info: bool,
     show_images: bool,
+    image: KittyImage,
     pub modified_files: BTreeSet<String>,
     undo_stack: Vec<Box<dyn AppCmd + Send + Sync>>,
     redo_stack: Vec<Box<dyn AppCmd + Send + Sync>>,
@@ -87,6 +89,9 @@ impl<'a> App<'a> {
         let mut text_area = TextArea::new(Vec::new());
         text_area.set_cursor_style(Style::default());
 
+        let image = KittyImage::new(100, 100);
+        image.upload(&mut std::io::stdout())?;
+
         let mut tree_widget = dicom_data.tree_sorted_by_filename();
         tree_widget.open(tree_widget.root_id);
 
@@ -96,6 +101,7 @@ impl<'a> App<'a> {
             tree_widget,
             text_area,
             show_debug_info: param.debug,
+            image,
             ..Default::default()
         })
     }
@@ -621,6 +627,12 @@ impl<'a> Widget for &mut App<'a> {
             Mode::Help(ref mut help_overlay) => help_overlay.render(area, buf),
             Mode::Edit(ref mut tag_edit) => tag_edit.render(area, buf),
             _ => {}
+        }
+
+        if self.show_images {
+            let _ = self.image.place(&mut io::stdout(), image_area);
+        } else {
+            let _ = self.image.hide(&mut io::stdout());
         }
     }
 }
