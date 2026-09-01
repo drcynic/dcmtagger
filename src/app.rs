@@ -632,7 +632,13 @@ impl<'a> Widget for &mut App<'a> {
         }
 
         if self.show_images {
-            let _ = self.image.place(&mut io::stdout(), image_area);
+            let image_rect = Rect {
+                x: image_area.x + 1,
+                y: image_area.y + 1,
+                width: image_area.width.saturating_sub(3),
+                height: image_area.height.saturating_sub(3),
+            };
+            let _ = self.image.place(&mut io::stdout(), image_rect);
         } else {
             let _ = self.image.hide(&mut io::stdout());
         }
