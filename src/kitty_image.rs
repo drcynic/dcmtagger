@@ -1,22 +1,8 @@
-use std::{
-    fs,
-    io::{self, Write},
-    // time::Duration,
-};
+use std::io::{self, Write};
 
 use base64::{Engine, engine::general_purpose::STANDARD};
-use crossterm::{
-    cursor::MoveTo,
-    // event::{self, Event, KeyCode},
-    execute,
-    // terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
-};
-use ratatui::{
-    // Terminal,
-    // backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout, Rect},
-    widgets::{Block, Borders},
-};
+use crossterm::{cursor::MoveTo, execute};
+use ratatui::layout::Rect;
 
 const IMAGE_ID: u32 = 100;
 const PLACEMENT_ID: u32 = 100;
@@ -39,22 +25,7 @@ impl KittyImage {
         }
     }
 
-    fn load(path: &str) -> io::Result<Self> {
-        let png = fs::read(path)?;
-
-        // Read dimensions from the PNG header.
-        let width = u32::from_be_bytes([png[16], png[17], png[18], png[19]]);
-        let height = u32::from_be_bytes([png[20], png[21], png[22], png[23]]);
-
-        Ok(Self {
-            data: STANDARD.encode(png),
-            width,
-            height,
-        })
-    }
-
     pub fn upload(&self, out: &mut impl Write) -> io::Result<()> {
-        // write!(out, "\x1b_Ga=t,f=100,i={},q=2,m=0;{}\x1b\\", IMAGE_ID, self.data)?;
         write!(
             out,
             "\x1b_Ga=t,f=24,s={},v={},i={},q=2,m=0;{}\x1b\\",
@@ -116,24 +87,5 @@ impl KittyImage {
         write!(out, "\x1b_Ga=d,d=I,i={}\x1b\\", IMAGE_ID)?;
 
         out.flush()
-    }
-}
-
-fn image_area(frame: &mut ratatui::Frame) -> Rect {
-    let layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Min(1)])
-        .split(frame.area());
-
-    let block_area = layout[1];
-
-    frame.render_widget(Block::default().title(" Image ").borders(Borders::ALL), block_area);
-
-    // Inside the border.
-    Rect {
-        x: block_area.x + 1,
-        y: block_area.y + 1,
-        width: block_area.width.saturating_sub(2),
-        height: block_area.height.saturating_sub(2),
     }
 }

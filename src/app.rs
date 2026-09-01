@@ -111,6 +111,8 @@ impl<'a> App<'a> {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
         }
+        self.image.delete(&mut std::io::stdout())?;
+
         Ok(())
     }
 
