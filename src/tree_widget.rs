@@ -139,14 +139,13 @@ impl TreeWidget {
             let mut cur_id = cur_id;
             let mut parent_id_opt = cur.parent_id;
             loop {
-                if let Some(parent_id) = parent_id_opt {
+                {
+                    let parent_id = parent_id_opt?;
                     if let Some(sibling_id) = self.next_sibling(parent_id, cur_id) {
                         return Some(sibling_id);
                     }
                     cur_id = parent_id;
                     parent_id_opt = self.nodes.get(parent_id).unwrap().parent_id;
-                } else {
-                    return None;
                 }
             }
         }

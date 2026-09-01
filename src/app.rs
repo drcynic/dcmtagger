@@ -526,7 +526,7 @@ impl<'a> App<'a> {
                 if let Some(next_node) = self.tree_widget.nodes.get(next_id)
                     && next_node.text.to_lowercase().contains(&search_text)
                 {
-                    self.handler_text = format!("searchtext: {}, {:?} -> {}", &search_text, next_id, &next_node.text);
+                    self.handler_text = format!("searchtext: {}, {:?} -> {}", search_text, next_id, next_node.text);
                     self.tree_widget.selected_id = next_id;
                     self.tree_widget.open(next_id);
                     return;
@@ -535,7 +535,7 @@ impl<'a> App<'a> {
                 cur_id = next_id;
             } else {
                 let cur_node = self.tree_widget.nodes.get(cur_id).unwrap();
-                self.handler_text = format!("no more nodes, searchtext: {}, {:?} -> {}", &search_text, cur_id, &cur_node.text);
+                self.handler_text = format!("no more nodes, searchtext: {}, {:?} -> {}", search_text, cur_id, cur_node.text);
                 return;
             }
         }
