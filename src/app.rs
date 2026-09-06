@@ -76,7 +76,8 @@ pub struct App<'a> {
     pub handler_text: String,
     exit: bool,
     show_debug_info: bool,
-    show_images: bool,
+    show_image: bool,
+    shown_image_id: Option<tree_widget::Id>,
     image: KittyImage,
     pub modified_files: BTreeSet<String>,
     undo_stack: Vec<Box<dyn AppCmd + Send + Sync>>,
@@ -89,7 +90,7 @@ impl<'a> App<'a> {
         let mut text_area = TextArea::new(Vec::new());
         text_area.set_cursor_style(Style::default());
 
-        let image = KittyImage::new(100, 100);
+        let image = KittyImage::new_dummy(100, 100);
         image.upload(&mut std::io::stdout())?;
 
         let mut tree_widget = dicom_data.tree_sorted_by_filename();
@@ -299,8 +300,8 @@ impl<'a> App<'a> {
     }
 
     fn toggle_images(&mut self) {
-        self.show_images = !self.show_images;
-        self.handler_text = format!("Images toggled to: {}", self.show_images);
+        self.show_image = !self.show_image;
+        self.handler_text = format!("Images toggled to: {}", self.shown_image_id.is_some());
     }
 
     fn exit(&mut self, force_exit_when_modified: bool) {
@@ -557,9 +558,44 @@ impl<'a> Widget for &mut App<'a> {
         let modified = format!("{} ", if self.modified_files.is_empty() { "" } else { " (*)" });
         let title = Line::from(vec![" DICOM Tagger - ".bold(), self.input_path.clone().into(), modified.into()]);
 
+        if self.show_image {
+            let selected_id = self.tree_widget.selected_id;
+            if (self.shown_image_id.is_none() || (self.shown_image_id.is_some() && self.shown_image_id.unwrap() != selected_id))
+                && let Some(node) = self.tree_widget.nodes.get(selected_id)
+                && let Some(source) = &node.source
+                && let Some(dataset) = self.dicom_data.dicom_obj_for_source(source)
+                && let Some(pixel_data) = dataset.element(dicom_dictionary_std::tags::PIXEL_DATA).ok()
+            {
+                let columns = dataset
+                    .element(dicom_dictionary_std::tags::COLUMNS)
+                    .ok()
+                    .and_then(|v| v.uint16().ok())
+                    .unwrap();
+                let rows = dataset
+                    .element(dicom_dictionary_std::tags::ROWS)
+                    .ok()
+                    .and_then(|v| v.uint16().ok())
+                    .unwrap();
+
+                // self.handler_text = "got here6".to_string();
+                let slice = pixel_data.uint16_slice().unwrap();
+                let buffer: Vec<u8> = slice
+                    .iter()
+                    .flat_map(|&v| {
+                        let byte = ((v / 16) & 0xFF) as u8;
+                        [byte, byte, byte]
+                    })
+                    .collect();
+                let image = KittyImage::new(columns as u32, rows as u32, &buffer);
+                let _ = image.upload(&mut std::io::stdout());
+            }
+        } else {
+            let _ = self.image.delete(&mut std::io::stdout());
+        }
+
         let [main_area, state_area, input_area] = self.layouted_areas(area);
         let [mut list_area, image_area] = Layout::horizontal([Constraint::Fill(1), Constraint::Fill(1)]).areas(main_area);
-        if !self.show_images {
+        if !self.show_image {
             list_area = main_area;
         }
 
@@ -571,7 +607,7 @@ impl<'a> Widget for &mut App<'a> {
 
         let tree_block = Block::bordered()
             .title(title.centered())
-            .border_set(if self.show_images {
+            .border_set(if self.show_image {
                 symbols::border::Set {
                     top_right: symbols::line::NORMAL.horizontal_down,
                     bottom_left: symbols::line::NORMAL.vertical_right,
@@ -599,7 +635,7 @@ impl<'a> Widget for &mut App<'a> {
             .selection_style(Style::default().bg(Color::DarkGray));
         StatefulWidget::render(tree_renderer, list_area, buf, &mut self.tree_widget);
 
-        if self.show_images {
+        if self.show_image {
             let image_block = Block::bordered()
                 .borders(Borders::RIGHT | Borders::TOP | Borders::BOTTOM)
                 .border_set(symbols::border::Set {
@@ -631,7 +667,7 @@ impl<'a> Widget for &mut App<'a> {
             _ => {}
         }
 
-        if self.show_images {
+        if self.show_image {
             let image_rect = Rect {
                 x: image_area.x + 1,
                 y: image_area.y + 1,

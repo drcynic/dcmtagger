@@ -15,11 +15,20 @@ pub struct KittyImage {
 }
 
 impl KittyImage {
-    pub fn new(width: u32, height: u32) -> Self {
+    pub fn new_dummy(width: u32, height: u32) -> Self {
         let buffer = vec![128u8; (width * height * 3) as usize];
 
         Self {
             data: STANDARD.encode(&buffer),
+            width,
+            height,
+        }
+    }
+
+    pub fn new(width: u32, height: u32, buffer: &[u8]) -> Self {
+        assert!(buffer.len() == (width * height * 3) as usize);
+        Self {
+            data: STANDARD.encode(buffer),
             width,
             height,
         }
